@@ -3,9 +3,8 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import GameFixture from "../components/GameFixture";
 
-// The URL for your deployed backend API
-const API_URL =
-  "https://betwise-project.onrender.com/api/v1/games?status=upcoming";
+// Use the VITE_API_URL from your .env file to get the correct backend address
+const API_URL = `${import.meta.env.VITE_API_URL}/games?status=upcoming`;
 
 const HomePage = () => {
   // State to hold the list of games
@@ -21,7 +20,8 @@ const HomePage = () => {
       try {
         setLoading(true);
         const response = await axios.get(API_URL);
-        setGames(response.data.games); // Assuming the games are in response.data.games
+        // Ensure you are accessing the nested 'games' array from your API response
+        setGames(response.data.games);
         setError(null);
       } catch (err) {
         setError("Failed to fetch games. Please try again later.");

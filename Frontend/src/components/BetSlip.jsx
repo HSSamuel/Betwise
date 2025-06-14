@@ -1,22 +1,22 @@
 // src/components/BetSlip.jsx
 import React, { useState, useMemo } from "react";
 import { useBetSlip } from "../context/BetSlipContext";
+import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 
-// The base URL for your deployed backend API
-const API_BASE_URL = "https://betwise-project.onrender.com/api/v1";
+// Define only the BASE part of the URL from your .env file
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const BetSlip = () => {
   const { selections, removeSelection, clearBetSlip } = useBetSlip();
+  const { token } = useAuth();
   const [stake, setStake] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Calculate total odds using useMemo for efficiency
   const totalOdds = useMemo(() => {
     if (selections.length === 0) return 0;
-    // The 'reduce' function multiplies all the odds together
     return selections.reduce((acc, current) => acc * current.odds, 1);
   }, [selections]);
 
@@ -28,21 +28,17 @@ const BetSlip = () => {
       setError("Please add selections and enter a valid stake.");
       return;
     }
+    if (!token) {
+      setError("You must be logged in to place a bet.");
+      return;
+    }
 
     setIsLoading(true);
     setError("");
     setSuccess("");
 
-    // IMPORTANT: In a real app, you would get this from your global auth state
-    const authToken = localStorage.getItem("authToken"); // Example of getting token
-
-    if (!authToken) {
-      setError("You must be logged in to place a bet.");
-      setIsLoading(false);
-      return;
-    }
-
     const isMultiBet = selections.length > 1;
+    // Build the full endpoint URL correctly using API_BASE_URL
     const endpoint = isMultiBet
       ? `${API_BASE_URL}/bets/multi`
       : `${API_BASE_URL}/bets`;
@@ -65,9 +61,9 @@ const BetSlip = () => {
     }
 
     try {
-      const response = await axios.post(endpoint, payload, {
+      await axios.post(endpoint, payload, {
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       setSuccess("Bet placed successfully!");
