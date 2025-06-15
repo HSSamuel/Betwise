@@ -1,0 +1,257 @@
+/* src/App.css */
+/* This file contains styles for various components across the application. */
+
+/* Main Layout & Grid System */
+.app-container {
+  display: grid;
+  /* On mobile, it's a single column. */
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* On larger screens (desktops), it becomes a two-column layout. */
+@media (min-width: 1024px) {
+  .app-container {
+    grid-template-columns: 1fr 350px;
+  }
+}
+
+.sidebar {
+  /* This makes the sidebar "stick" to the top when scrolling on large screens. */
+  position: sticky;
+  top: 2rem;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Typography & Headings */
+h1,
+h2 {
+  font-weight: 700;
+  color: #1f2937; /* Dark Gray */
+}
+
+h1 {
+  font-size: 2.25rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+/* GameCard Component Styles */
+.game-card {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+.game-card:hover {
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.05);
+}
+
+.game-card-teams {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 1.125rem;
+  margin-bottom: 1rem;
+}
+
+.game-card-details {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+}
+
+.odds-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.odds-buttons button {
+  background-color: #f9fafb;
+  border: 1px solid #d1d5db;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.odds-buttons button:hover,
+.odds-buttons button.active {
+  background-color: #3b82f6; /* Blue */
+  color: white;
+  border-color: #2563eb;
+}
+
+/* BetSlip Component Styles */
+.bet-slip {
+  background-color: #fff;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+.bet-slip h3 {
+  margin-top: 0;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.75rem;
+}
+
+.slip-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.slip-item button {
+  background-color: #ef4444; /* Red */
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  line-height: 24px;
+  font-weight: bold;
+}
+
+.slip-summary input[type="number"] {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  margin: 1rem 0;
+  box-sizing: border-box;
+}
+
+.slip-summary button {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  border: none;
+  background-color: #16a34a; /* Green */
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.slip-summary button:hover {
+  background-color: #15803d;
+}
+
+/* MyBets Page Styles */
+.bet-card {
+  background-color: #fff;
+  border-left: 5px solid #6c757d;
+  border-radius: 5px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.bet-card.pending {
+  border-left-color: #f59e0b;
+}
+.bet-card.won {
+  border-left-color: #16a34a;
+}
+.bet-card.lost {
+  border-left-color: #ef4444;
+}
+.bet-card.cancelled {
+  border-left-color: #6b7280;
+}
+
+.bet-card-header,
+.bet-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #6b7280;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.bet-card-header {
+  border-bottom: 1px solid #eee;
+}
+
+.bet-card-footer {
+  border-top: 1px solid #eee;
+  padding-top: 1rem;
+  margin-bottom: 0;
+  margin-top: 1rem;
+  font-weight: bold;
+}
+
+.payout-amount {
+  color: #16a34a;
+  font-weight: bold;
+}
+
+/* Admin/Wallet Table Styles */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.75rem;
+  border-bottom: 1px solid #d1d5db;
+}
+
+th {
+  background-color: #f9fafb;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.approve-btn,
+.reject-btn,
+.manage-btn {
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.approve-btn {
+  background-color: #16a34a;
+}
+.reject-btn {
+  background-color: #ef4444;
+}
+.manage-btn {
+  background-color: #3b82f6;
+}
