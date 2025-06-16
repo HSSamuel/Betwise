@@ -1,0 +1,35 @@
+import api from "./api";
+
+export const login = async (email, password) => {
+  const response = await api.post("/auth/login", { email, password });
+  return response.data;
+};
+
+export const register = async (userData) => {
+  const response = await api.post("/auth/register", userData);
+  return response.data;
+};
+
+export const logout = async () => {
+  // The token is blacklisted on the backend via the interceptor
+  // This function is mostly for client-side state clearing
+  return Promise.resolve();
+};
+
+export const refreshToken = async (token) => {
+  const response = await api.post("/auth/refresh-token", { token });
+  return response.data;
+};
+
+export const requestPasswordReset = async (email) => {
+  const response = await api.post("/auth/request-password-reset", { email });
+  return response.data;
+};
+
+export const resetPassword = async (token, password, confirmPassword) => {
+  const response = await api.post(`/auth/reset-password/${token}`, {
+    password,
+    confirmPassword,
+  });
+  return response.data;
+};

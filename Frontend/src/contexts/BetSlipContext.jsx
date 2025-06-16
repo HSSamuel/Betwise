@@ -1,43 +1,63 @@
-import React, { createContext, useState, useContext } from "react";
+import React, { createContext, useState, useContext, useMemo } from "react";
+import toast from "react-hot-toast";
 
 const BetSlipContext = createContext();
-
-export const useBetSlip = () => useContext(BetSlipContext);
 
 export const BetSlipProvider = ({ children }) => {
   const [selections, setSelections] = useState([]);
 
-  const addSelection = (newSelection) => {
+  const addSelection = (selection) => {
     setSelections((prev) => {
-      const existingSelection = prev.find(
-        (item) => item.gameId === newSelection.gameId
+      // If the same game is selected, replace the outcome
+      const existingIndex = prev.findIndex(
+        (s) => s.gameId === selection.gameId
       );
-      if (existingSelection) {
-        if (existingSelection.outcome === newSelection.outcome) {
-          // If same selection is clicked again, remove it
-          return prev.filter((item) => item.gameId !== newSelection.gameId);
+      if (existingIndex > -1) {
+        // If the same outcome is clicked again, remove it
+        if (prev[existingIndex].outcome === selection.outcome) {
+          return prev.filter((s) => s.gameId !== selection.gameId);
         }
-        // If different outcome for same game, replace it
-        return prev.map((item) =>
-          item.gameId === newSelection.gameId ? newSelection : item
-        );
+        const updatedSelections = [...prev];
+        updatedSelections[existingIndex] = selection;
+        toast.success("Selection updated in your bet slip!");
+        return updatedSelections;
       }
-      // Add new selection
-      return [...prev, newSelection];
+      // If it's a new game, add it to the slip
+      if (prev.length >= 10) {
+        toast.error(
+          "You can only have a maximum of 10 selections in a multi-bet."
+        );
+        return prev;
+      }
+      toast.success("Selection added to your bet slip!");
+      return [...prev, selection];
     });
   };
 
   const removeSelection = (gameId) => {
-    setSelections((prev) => prev.filter((item) => item.gameId !== gameId));
+    setSelections((prev) => prev.filter((s) => s.gameId !== gameId));
   };
 
   const clearSelections = () => {
     setSelections([]);
   };
 
-  const value = { selections, addSelection, removeSelection, clearSelections };
+  const totalOdds = useMemo(() => {
+    if (selections.length === 0) return 0;
+    return selections.reduce((acc, current) => acc * current.odds, 1);
+  }, [selections]);
+
+  const value = {
+    selections,
+    addSelection,
+    removeSelection,
+    clearSelections,
+    totalOdds,
+  };
 
   return (
     <BetSlipContext.Provider value={value}>{children}</BetSlipContext.Provider>
   );
 };
+
+export const useBetSlip = () => useContext(BetSlipContext);

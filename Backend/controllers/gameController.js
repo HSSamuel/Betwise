@@ -10,7 +10,7 @@ const { generateOddsForGame } = require("../services/oddsService");
 
 // --- Validation Rules ---
 
-// UPDATED: Made odds validation optional for single game creation
+// Made odds validation optional for single game creation
 exports.validateCreateGame = [
   body("homeTeam")
     .trim()
@@ -28,7 +28,6 @@ exports.validateCreateGame = [
       }
       return true;
     }),
-  // This group of validations is now optional
   body("odds")
     .optional()
     .isObject()
@@ -48,7 +47,6 @@ exports.validateCreateGame = [
     .isFloat({ min: 1 })
     .withMessage("Draw odd must be at least 1.")
     .toFloat(),
-
   body("league")
     .trim()
     .notEmpty()
@@ -145,12 +143,10 @@ exports.createMultipleGames = async (req, res, next) => {
   }
   try {
     const createdGames = await Game.insertMany(req.body, { ordered: false });
-    res
-      .status(201)
-      .json({
-        msg: `Successfully created ${createdGames.length} new games.`,
-        createdGames,
-      });
+    res.status(201).json({
+      msg: `Successfully created ${createdGames.length} new games.`,
+      createdGames,
+    });
   } catch (error) {
     next(error);
   }
@@ -204,12 +200,10 @@ exports.createGame = async (req, res, next) => {
     });
     await game.save();
 
-    res
-      .status(201)
-      .json({
-        message: `Match added: ${game.homeTeam} vs ${game.awayTeam}.`,
-        game,
-      });
+    res.status(201).json({
+      message: `Match added: ${game.homeTeam} vs ${game.awayTeam}.`,
+      game,
+    });
   } catch (error) {
     next(error);
   }
@@ -411,7 +405,14 @@ exports.getGameSuggestions = async (req, res, next) => {
     const userBets = await Bet.find({ user: req.user._id })
       .select("game")
       .lean();
-    const betOnGameIds = userBets.map((bet) => bet.game.toString());
+
+    // **THE FIX IS HERE**
+    // We first filter out any bets where the game is null,
+    // and only then do we map them to strings.
+    const betOnGameIds = userBets
+      .filter((bet) => bet.game) // This ensures bet.game is not null
+      .map((bet) => bet.game.toString());
+
     let suggestedGames = [];
     const filter = { status: "upcoming", _id: { $nin: betOnGameIds } };
     if (user.favoriteLeagues && user.favoriteLeagues.length > 0) {

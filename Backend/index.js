@@ -23,13 +23,13 @@ app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
 // --- Rate Limiting Setup ---
 const generalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
 });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: parseInt(process.env.API_RATE_LIMIT_MAX) || 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

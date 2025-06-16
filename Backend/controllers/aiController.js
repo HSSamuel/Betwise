@@ -26,10 +26,13 @@ const formatBetsForPrompt = (bets) => {
       const betDetails =
         bet.selections && bet.selections.length > 0
           ? bet.selections
-              .map(
-                (s) =>
-                  `${s.game.homeTeam} vs ${s.game.awayTeam} (Your pick: ${s.outcome})`
-              )
+              .map((s) => {
+                // **THE FIX IS HERE:** Check if the game data exists before trying to use it.
+                if (!s.game) {
+                  return "[Game data unavailable]";
+                }
+                return `${s.game.homeTeam} vs ${s.game.awayTeam} (Your pick: ${s.outcome})`;
+              })
               .join(" | ")
           : "Details unavailable";
 
