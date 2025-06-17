@@ -1,45 +1,35 @@
 const express = require("express");
 const router = express.Router();
+// Note: Your file uses 'auth', the original used 'isAuthenticated'. I'll use 'auth' to match your file.
 const { auth } = require("../middleware/authMiddleware");
 const {
   handleValidationErrors,
-} = require("../middleware/validationMiddleware"); // <-- IMPORT NEW MIDDLEWARE
+} = require("../middleware/validationMiddleware");
 
+// Import all the specific validators and controllers
 const {
-  placeBet,
-  getUserBets,
-  getBetById,
-  placeMultiBet,
   validatePlaceBet,
-  validateGetUserBets,
-  validateGetBetById,
   validatePlaceMultiBet,
+  placeBet,
+  placeMultiBet,
+  validateGetUserBets,
+  getUserBets,
+  validateGetBetById,
+  getBetById,
 } = require("../controllers/betController");
 
-// @route   POST /bets
-// @desc    User: Place a new bet
-// @access  Private (Authenticated User)
-router.post("/", auth, validatePlaceBet, handleValidationErrors, placeBet);
-
-// @route   GET /bets
-// @desc    User: Get all bets for the logged-in user
-// @access  Private (Authenticated User)
-router.get("/", auth, validateGetUserBets, handleValidationErrors, getUserBets);
-
-// @route   GET /bets/:id
-// @desc    User: Get a single bet by its ID
-// @access  Private (Authenticated User)
-router.get(
-  "/:id",
+// @desc    Place a single bet
+// @access  Private
+router.post(
+  "/single",
   auth,
-  validateGetBetById,
+  validatePlaceBet,
   handleValidationErrors,
-  getBetById
+  placeBet
 );
 
-// @route   POST /bets/multi
-// @desc    User: Place a new multi-bet (accumulator)
-// @access  Private (Authenticated User)
+// @desc    Place a multi-bet
+// @access  Private
 router.post(
   "/multi",
   auth,
@@ -48,5 +38,18 @@ router.post(
   placeMultiBet
 );
 
+// @desc    Get user's bets
+// @access  Private
+router.get("/", auth, validateGetUserBets, handleValidationErrors, getUserBets);
+
+// @desc    Get a single bet by its ID
+// @access  Private
+router.get(
+  "/:id",
+  auth,
+  validateGetBetById,
+  handleValidationErrors,
+  getBetById
+);
+
 module.exports = router;
-// This code defines the routes for betting functionality in an Express application, including placing single and multi-bets, retrieving user bets, and getting details of a specific bet. It uses middleware for authentication and validation of requests.

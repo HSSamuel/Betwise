@@ -12,6 +12,20 @@ const {
 } = require("../controllers/authController");
 const { auth } = require("../middleware/authMiddleware");
 const passport = require("passport");
+const { isAuthenticated } = require("../middleware/authMiddleware");
+
+/**
+ * @desc    Get logged in user data from cookie session
+ * @route   GET /api/auth/me
+ * @access  Private
+ */
+exports.getMe = async (req, res, next) => {
+  // The isAuthenticated middleware already attaches the user to the request.
+  res.status(200).json({
+    success: true,
+    user: req.user,
+  });
+};
 
 // ## --- SOCIAL LOGIN---
 // @route   GET /api/v1/auth/google

@@ -2,6 +2,7 @@ import React from "react";
 import GameCard from "./GameCard";
 
 const GameList = ({ games }) => {
+  console.log("Games received in GameList:", JSON.stringify(games, null, 2));
   if (!games || games.length === 0) {
     return (
       <p className="text-center text-gray-500 mt-8">
@@ -10,10 +11,13 @@ const GameList = ({ games }) => {
     );
   }
 
-  // **THE FIX IS HERE:**
-  // This line filters out any null or undefined game objects from the array
-  // before we try to map over them. This prevents the entire page from crashing.
-  const validGames = games.filter((game) => game && game._id);
+  // --- THIS IS THE CRUCIAL FIX ---
+  // This regex ensures that the _id is a valid 24-character hex string,
+  // matching the backend's validation requirements.
+  const mongoIdRegex = /^[0-9a-fA-F]{24}$/;
+  const validGames = games.filter(
+    (game) => game && game._id && mongoIdRegex.test(game._id)
+  );
 
   if (validGames.length === 0) {
     return (

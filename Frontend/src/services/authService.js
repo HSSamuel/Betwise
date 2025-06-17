@@ -1,5 +1,10 @@
 import api from "./api";
 
+export const placeSingleBet = (betData) => api.post("/bets/single", betData);
+export const placeMultiBet = (betData) => api.post("/bets/multi", betData);
+export const getBets = (params) => api.get("/bets", { params });
+export const getBetById = (id) => api.get(`/bets/${id}`);
+
 export const login = async (email, password) => {
   const response = await api.post("/auth/login", { email, password });
   return response.data;
@@ -32,4 +37,9 @@ export const resetPassword = async (token, password, confirmPassword) => {
     confirmPassword,
   });
   return response.data;
+};
+
+export const getMe = async () => {
+  const { data } = await api.get("/auth/me");
+  return data;
 };

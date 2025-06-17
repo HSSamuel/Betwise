@@ -1,32 +1,69 @@
-import React, { useEffect } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+// --- THIS IS THE CORRECTED IMPORT ---
+import * as authService from "../../services/authService";
+import { toast } from "react-hot-toast";
 import Spinner from "../../components/ui/Spinner";
-import toast from "react-hot-toast";
 
 const SocialAuthCallback = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { handleSocialAuth } = useAuth();
+  const { login } = useAuth();
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const accessToken = searchParams.get("accessToken");
-    const refreshToken = searchParams.get("refreshToken");
+    const completeSocialLogin = async () => {
+      try {
+        // The secure cookies are sent automatically by the browser.
+        // Now this call will work correctly because authService is an object
+        // containing the 'getMe' function.
+        const { user } = await authService.getMe();
 
-    if (accessToken && refreshToken) {
-      handleSocialAuth(accessToken, refreshToken);
-      toast.success("Logged in successfully!");
-      navigate("/");
-    } else {
-      toast.error("Authentication failed. Please try again.");
-      navigate("/login");
-    }
-  }, [searchParams, navigate, handleSocialAuth]);
+        if (user) {
+          login(user);
+          toast.success(`Welcome, ${user.firstName}!`);
+          navigate("/");
+        } else {
+          throw new Error("Authentication failed. Please try again.");
+        }
+      } catch (err) {
+        console.error("Social login failed:", err);
+        const errorMessage =
+          err.response?.data?.msg ||
+          err.message ||
+          "An unknown error occurred.";
+        setError(errorMessage);
+        toast.error(errorMessage);
+        setTimeout(() => navigate("/login"), 3000);
+      }
+    };
+
+    completeSocialLogin();
+  }, [navigate, login]);
 
   return (
-    <div className="flex flex-col justify-center items-center h-screen">
-      <Spinner size="lg" />
-      <p className="mt-4 text-lg text-gray-600">Finalizing your login...</p>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+      <div className="p-8 bg-white rounded-lg shadow-md text-center">
+        {error ? (
+          <>
+            <h1 className="text-2xl font-bold text-red-600 mb-4">
+              Authentication Failed
+            </h1>
+            <p className="text-gray-600">{error}</p>
+            <p className="text-gray-600 mt-2">Redirecting to login...</p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">
+              Finalizing login...
+            </h1>
+            <p className="text-gray-600">
+              Please wait while we securely log you in.
+            </p>
+            <Spinner className="mt-4" />
+          </>
+        )}
+      </div>
     </div>
   );
 };

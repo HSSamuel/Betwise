@@ -225,36 +225,44 @@ exports.refreshToken = async (req, res, next) => {
 exports.socialLoginCallback = async (req, res, next) => {
   try {
     const user = req.user;
-    if (!user) {
-      const err = new Error("User authentication failed.");
-      err.statusCode = 401;
-      return next(err);
-    }
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
 
-    // --- TEMPORARY CHANGE FOR TESTING ---
-    // res.redirect(
-    //   `<span class="math-inline">\{process\.env\.FRONTEND\_URL\}/social\-auth\-success?accessToken\=</span>{accessToken}&refreshToken=${refreshToken}`
-    // );
-    res.json({
-      msg: "Social login successful. Here are your details.",
-      user: user,
-      accessToken: accessToken,
-      refreshToken: refreshToken,
+    if (!user) {
+      return res
+        .status(401)
+        .redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+    }
+    // 1. Generate Tokens
+    const accessToken = user.generateAuthToken();
+    const refreshToken = user.generateRefreshToken();
+
+    // 2. Set tokens in secure, http-only cookies
+    // The 'httpOnly' flag prevents client-side JS from accessing the cookie.
+    // The 'secure' flag ensures the cookie is only sent over HTTPS.
+    // SameSite=Strict helps prevent CSRF.
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // Use secure cookies in production
+      sameSite: "Strict",
+    };
+
+    res.cookie("accessToken", accessToken, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000, // 15 minutes
     });
+
+    res.cookie("refreshToken", refreshToken, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // 3. Instead of tokens, redirect to a dedicated success page
+    // The frontend will use this page to confirm the login status.
+    res.redirect(`${process.env.FRONTEND_URL}/social-auth-success`);
   } catch (error) {
-    next(error);
+    console.error("Social login callback error:", error);
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=server_error`);
   }
 };
-
-//     res.redirect(
-//       `${process.env.FRONTEND_URL}/social-auth-success?accessToken=${accessToken}&refreshToken=${refreshToken}`
-//     );
-//   } catch (error) {
-//     next(error);
-//   }
-// };
 
 // --- Password Management Functions ---
 exports.requestPasswordReset = async (req, res, next) => {
@@ -338,4 +346,20 @@ exports.resetPassword = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+/**
+ * @desc    Get logged in user data from cookie session
+ * @route   GET /api/auth/me
+ * @access  Private
+ */
+exports.getMe = async (req, res, next) => {
+  // The isAuthenticated middleware already attaches the user to the request.
+  // We can also generate new tokens here if we want to refresh them on session validation,
+  // but for simplicity, we'll just send the user data.
+  // The frontend will receive this and know the user is authenticated.
+  res.status(200).json({
+    success: true,
+    user: req.user,
+  });
 };

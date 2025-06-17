@@ -75,4 +75,24 @@ const BetSchema = new mongoose.Schema(
 BetSchema.index({ user: 1, status: 1 });
 BetSchema.index({ status: 1, "selections.game": 1 }); // Helps find bets that include a specific game
 
+BetSchema.statics.getRiskAnalysisForGame = function (gameId) {
+  const riskPipeline = [
+    {
+      $match: { game: new mongoose.Types.ObjectId(gameId) },
+    },
+    {
+      $group: {
+        _id: "$outcome", // Group by the specific outcome (e.g., 'Home', 'Away', 'Draw')
+        totalStake: { $sum: "$stake" },
+        totalLiability: { $sum: "$potentialPayout" },
+        betCount: { $sum: 1 },
+      },
+    },
+    {
+      $sort: { totalLiability: -1 }, // Sort by the highest risk
+    },
+  ];
+  return this.aggregate(riskPipeline);
+};
+
 module.exports = mongoose.model("Bet", BetSchema);

@@ -419,52 +419,19 @@ exports.manualGameSync = async (req, res, next) => {
 exports.getGameRiskAnalysis = async (req, res, next) => {
   try {
     const { id: gameId } = req.params;
-
+    // This entire pipeline is business logic that can be moved
     const riskPipeline = [
-      // 1. Find all pending bets for the specified game
-      {
-        $match: {
-          game: new mongoose.Types.ObjectId(gameId),
-          status: "pending",
-        },
-      },
-      // 2. Calculate the potential payout for each bet
-      {
-        $project: {
-          stake: 1,
-          outcome: 1,
-          potentialPayout: {
-            $switch: {
-              branches: [
-                {
-                  case: { $eq: ["$outcome", "A"] },
-                  then: { $multiply: ["$stake", "$oddsAtTimeOfBet.home"] },
-                },
-                {
-                  case: { $eq: ["$outcome", "B"] },
-                  then: { $multiply: ["$stake", "$oddsAtTimeOfBet.away"] },
-                },
-                {
-                  case: { $eq: ["$outcome", "Draw"] },
-                  then: { $multiply: ["$stake", "$oddsAtTimeOfBet.draw"] },
-                },
-              ],
-              default: 0,
-            },
-          },
-        },
-      },
-      // 3. Group by outcome and sum the stakes and potential payouts
+      { $match: { game: new mongoose.Types.ObjectId(gameId) } },
       {
         $group: {
-          _id: "$outcome", // Group by A, B, or Draw
+          _id: "$outcome",
           totalStake: { $sum: "$stake" },
-          totalPotentialPayout: { $sum: "$potentialPayout" },
+          totalLiability: { $sum: "$potentialPayout" },
           betCount: { $sum: 1 },
         },
       },
+      { $sort: { totalLiability: -1 } },
     ];
-
     const riskAnalysis = await Bet.aggregate(riskPipeline);
 
     // Format the response for clarity
