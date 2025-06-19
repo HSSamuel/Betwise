@@ -1,7 +1,9 @@
+// In: src/services/aiService.js
+
 import api from "./api";
 
-export const handleChat = async (message, history) => {
-  const response = await api.post("/ai/chat", { message, history });
+export const handleChat = async (message, history, context = null) => {
+  const response = await api.post("/ai/chat", { message, history, context });
   return response.data;
 };
 
@@ -22,5 +24,26 @@ export const getBettingFeedback = async () => {
 
 export const generateLimitSuggestion = async () => {
   const response = await api.get("/ai/limit-suggestion");
+  return response.data;
+};
+
+// FIX: Add a guard clause to prevent sending empty requests
+export const getNewsSummary = async (topic) => {
+  // If the topic is empty or just whitespace, do not proceed.
+  if (!topic || !topic.trim()) {
+    console.error("News summary topic cannot be empty.");
+    return; // Stop the function here
+  }
+  const response = await api.post("/ai/news-summary", { topic });
+  return response.data;
+};
+
+export const getRecommendedGames = async () => {
+  const response = await api.get("/ai/recommendations");
+  return response.data;
+};
+
+export const getGeneralSportsNews = async () => {
+  const response = await api.get("/ai/world-sports-news");
   return response.data;
 };

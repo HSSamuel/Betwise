@@ -6,8 +6,9 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const readline = require("readline");
 const User = require("../models/User");
+const config = require("../config/env"); // <-- IMPORT the new config
 
-const dbUri = process.env.MONGODB_URI;
+const dbUri = config.MONGODB_URI; // <-- USE config
 
 // --- Helper for secure password prompt ---
 const rl = readline.createInterface({

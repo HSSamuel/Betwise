@@ -42,6 +42,10 @@ const userSchema = new mongoose.Schema(
         "Please provide a valid email address.",
       ],
     },
+    profilePicture: {
+      type: String,
+      default: "", // Default to an empty string
+    },
     password: {
       type: String,
       minlength: [

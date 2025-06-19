@@ -1,7 +1,9 @@
+// In: src/pages/public/SocialAuthCallback.jsx
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth";
-// --- THIS IS THE CORRECTED IMPORT ---
+import { useAuth } from "../../contexts/AuthContext";
+// FIX: Removed the duplicate import statement below
 import * as authService from "../../services/authService";
 import { toast } from "react-hot-toast";
 import Spinner from "../../components/ui/Spinner";
@@ -14,9 +16,6 @@ const SocialAuthCallback = () => {
   useEffect(() => {
     const completeSocialLogin = async () => {
       try {
-        // The secure cookies are sent automatically by the browser.
-        // Now this call will work correctly because authService is an object
-        // containing the 'getMe' function.
         const { user } = await authService.getMe();
 
         if (user) {

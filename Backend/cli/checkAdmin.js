@@ -1,11 +1,8 @@
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env"),
-});
-
 const mongoose = require("mongoose");
-const User = require("../models/User"); // Assuming User model is in ../models/User
+const User = require("../models/User");
+const config = require("../config/env"); // <-- IMPORT the new config
 
-const dbUri = process.env.MONGODB_URI;
+const dbUri = config.MONGODB_URI; // <-- USE config
 
 if (!dbUri) {
   console.error("❌ Error: MONGODB_URI is not defined in your .env file.");

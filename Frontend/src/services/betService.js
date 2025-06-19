@@ -1,7 +1,13 @@
 import api from "./api";
 
 export const placeBet = async (betData) => {
-  const response = await api.post("/bets", betData);
+  const response = await api.post("/bets/single", betData);
+  return response.data;
+};
+
+// FIX: Added new function for placing multiple single bets
+export const placeMultipleSingles = async (betData) => {
+  const response = await api.post("/bets/singles", betData); // New endpoint
   return response.data;
 };
 

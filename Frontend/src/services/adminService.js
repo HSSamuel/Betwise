@@ -55,3 +55,18 @@ export const getGameRiskAnalysis = async (gameId) => {
   const response = await api.get(`/admin/games/${gameId}/risk`);
   return response.data;
 };
+
+export const getGameRiskSummary = async (gameId) => {
+  const response = await api.get(`/admin/games/${gameId}/risk-summary`);
+  return response.data;
+};
+
+export const manualGameSync = async () => {
+  const response = await api.post("/admin/games/sync");
+  return response.data;
+};
+
+export const getRiskOverview = async () => {
+  const response = await api.get("/admin/risk/overview");
+  return response.data;
+};

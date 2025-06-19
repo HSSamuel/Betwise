@@ -42,3 +42,8 @@ export const cancelGame = async (gameId) => {
   const response = await api.patch(`/games/${gameId}/cancel`);
   return response.data;
 };
+
+export const searchGamesAI = async (query) => {
+  const response = await api.post("/ai/game-search", { query });
+  return response.data;
+};

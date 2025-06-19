@@ -80,6 +80,14 @@ const gameSchema = new mongoose.Schema(
       type: Date,
       required: [true, "Match date and time are required."],
     },
+    scores: {
+      home: { type: Number, default: null },
+      away: { type: Number, default: null },
+    },
+    elapsedTime: {
+      type: Number,
+      default: null,
+    },
     status: {
       type: String,
       enum: {
@@ -117,8 +125,5 @@ gameSchema.pre("save", function (next) {
 
 // Index for faster querying of games by date and status
 gameSchema.index({ matchDate: 1, status: 1 });
-
-// REMOVED this redundant line:
-// gameSchema.index({ externalApiId: 1 });
 
 module.exports = mongoose.model("Game", gameSchema);

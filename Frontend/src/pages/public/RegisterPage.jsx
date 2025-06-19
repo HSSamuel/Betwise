@@ -1,6 +1,6 @@
 import React from "react";
 import RegisterForm from "../../components/auth/RegisterForm";
-import SocialLoginButtons from "../../components/auth/SocialLoginButtons";
+import SocialLoginButtons from "../../components/auth/SocialLoginButtons"; // <-- Import SocialLoginButtons
 import { Link } from "react-router-dom";
 
 const RegisterPage = () => {
@@ -12,9 +12,9 @@ const RegisterPage = () => {
             Create Your Account
           </h2>
 
-          {/* This component handles the form logic internally */}
           <RegisterForm />
 
+          {/* --- ADD THIS SECTION --- */}
           <div className="my-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -29,6 +29,7 @@ const RegisterPage = () => {
           </div>
 
           <SocialLoginButtons />
+          {/* --- END OF ADDED SECTION --- */}
 
           <p className="mt-8 text-center text-sm text-gray-600">
             Already have an account?{" "}

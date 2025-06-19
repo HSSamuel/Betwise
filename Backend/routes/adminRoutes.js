@@ -21,48 +21,51 @@ const {
   validateProcessWithdrawal,
   getGameRiskAnalysis,
   getGameRiskSummary,
+  getRiskOverview,
 } = require("../controllers/adminController");
 const { manualGameSync } = require("../controllers/adminController");
 const { validateGameId } = require("../controllers/gameController");
+const {
+  handleValidationErrors,
+} = require("../middleware/validationMiddleware");
 
 // --- Admin Dashboard & Stats ---
 router.get("/dashboard/financial", auth, isAdmin, getFinancialDashboard);
 router.get("/stats/platform", auth, isAdmin, getPlatformStats);
 
 // --- User Management by Admin ---
-router.get("/users", auth, isAdmin, validateListUsers, listUsers);
-router.get("/all-users-full", auth, isAdmin, getAllUsersFullDetails);
+router.get("/users", auth, isAdmin, validateListUsers, handleValidationErrors, listUsers); // <-- USE MIDDLEWARE
 
 // @route   GET /admin/users/:id
-// @desc    Admin: Get a single user's profile
-// @access  Private (Admin)
+// ...
 router.get(
   "/users/:id",
   auth,
   isAdmin,
   validateAdminUserAction,
+  handleValidationErrors, // <-- USE MIDDLEWARE
   adminGetUserProfile
 );
 
 // @route   PATCH /admin/users/:id/role
-// @desc    Admin: Update a user's role
-// @access  Private (Admin)
+// ...
 router.patch(
   "/users/:id/role",
   auth,
   isAdmin,
   validateAdminUpdateRole,
+  handleValidationErrors, // <-- USE MIDDLEWARE
   adminUpdateUserRole
 );
 
 // @route   PATCH /admin/users/:id/wallet
-// @desc    Admin: Manually adjust a user's wallet balance
-// @access  Private (Admin)
+// ...
 router.patch(
   "/users/:id/wallet",
   auth,
   isAdmin,
   validateAdminAdjustWallet,
+  handleValidationErrors, // <-- USE MIDDLEWARE
   adminAdjustUserWallet
 );
 
@@ -95,6 +98,9 @@ router.patch(
   adminProcessWithdrawal
 );
 
+// @route   POST /admin/games/sync
+// @desc    Admin: Manually trigger a sync for upcoming games
+// @access  Private (Admin)
 router.post("/games/sync", auth, isAdmin, manualGameSync);
 
 // @route   GET /admin/games/:id/risk
@@ -118,6 +124,8 @@ router.get(
   validateGameId,
   getGameRiskSummary
 );
+
+router.get("/risk/overview", auth, isAdmin, getRiskOverview);
 
 module.exports = router;
 // This code defines the routes for admin functionalities in an Express application.

@@ -5,14 +5,16 @@ const Transaction = require("../models/Transaction");
 const Withdrawal = require("../models/Withdrawal");
 const { query, body, param, validationResult } = require("express-validator");
 const mongoose = require("mongoose");
-const { fetchAndSyncGames } = require("../services/sportsDataService");
+const { syncGames } = require("../services/sportsDataService");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const config = require("../config/env"); // <-- IMPORT the new config
 
 // Initialize Gemini AI
-if (!process.env.GEMINI_API_KEY) {
+if (!config.GEMINI_API_KEY) {
+  // <-- USE config
   throw new Error("GEMINI_API_KEY is not defined in the .env file.");
 }
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY); // <-- USE config
 
 // Admin: Get basic platform statistics
 exports.getPlatformStats = async (req, res, next) => {
@@ -396,20 +398,14 @@ exports.adminProcessWithdrawal = async (req, res, next) => {
   }
 };
 
+// FIX: This function now has access to syncGames and will work correctly.
 exports.manualGameSync = async (req, res, next) => {
-  const { leagueId } = req.body;
+  const { source = "apifootball" } = req.body;
   try {
-    if (leagueId) {
-      await fetchAndSyncGames(leagueId);
-      res.status(200).json({
-        msg: `Synchronization for league ID ${leagueId} has been successfully triggered.`,
-      });
-    } else {
-      await fetchAndSyncGames();
-      res.status(200).json({
-        msg: "Bulk synchronization of all default leagues has been successfully triggered.",
-      });
-    }
+    await syncGames(source);
+    res.status(200).json({
+      msg: `Synchronization from '${source}' has been successfully triggered.`,
+    });
   } catch (error) {
     next(error);
   }
@@ -558,6 +554,55 @@ exports.getGameRiskSummary = async (req, res, next) => {
       message: "AI-powered risk summary for game.",
       summary: summary.trim(),
       rawData: riskAnalysis, // Also return the raw data for context
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// FIX: New controller function to get a high-level risk overview.
+exports.getRiskOverview = async (req, res, next) => {
+  try {
+    const RISK_THRESHOLD = config.PLATFORM_RISK_THRESHOLD; // <-- USE config
+
+    // Aggregation pipeline to calculate total potential payout per game
+    const riskPipeline = [
+      { $match: { status: "pending" } }, // Only consider pending bets
+      {
+        $group: {
+          _id: "$game", // Group bets by game
+          totalPotentialPayout: { $sum: "$payout" },
+        },
+      },
+      {
+        $lookup: {
+          // Join with the games collection to get game details
+          from: "games",
+          localField: "_id",
+          foreignField: "_id",
+          as: "gameDetails",
+        },
+      },
+      { $unwind: "$gameDetails" }, // Deconstruct the gameDetails array
+      { $match: { "gameDetails.status": "upcoming" } }, // Ensure the game is upcoming
+      { $sort: { totalPotentialPayout: -1 } }, // Sort by the highest risk
+    ];
+
+    const allGameRisks = await Bet.aggregate(riskPipeline);
+
+    const totalExposure = allGameRisks.reduce(
+      (sum, game) => sum + game.totalPotentialPayout,
+      0
+    );
+    const highRiskGamesCount = allGameRisks.filter(
+      (game) => game.totalPotentialPayout > RISK_THRESHOLD
+    ).length;
+    const topExposedGames = allGameRisks.slice(0, 5); // Get the top 5 riskiest games
+
+    res.status(200).json({
+      totalExposure,
+      highRiskGamesCount,
+      topExposedGames,
     });
   } catch (error) {
     next(error);

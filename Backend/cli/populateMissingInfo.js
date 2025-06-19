@@ -1,11 +1,8 @@
-// scripts/populateMissingInfo.js
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env"),
-}); // Standardized path
 const mongoose = require("mongoose");
-const User = require("../models/User"); // Adjust path if User model is elsewhere
+const User = require("../models/User");
+const config = require("../config/env"); // <-- IMPORT the new config
 
-const dbUri = process.env.MONGODB_URI;
+const dbUri = config.MONGODB_URI; // <-- USE config
 
 if (!dbUri) {
   console.error(

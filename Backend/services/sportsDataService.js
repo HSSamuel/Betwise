@@ -1,124 +1,266 @@
-// In: services/sportsDataService.js
-
 const axios = require("axios");
+const mongoose = require("mongoose");
 const Game = require("../models/Game");
+const { generateOddsForGame } = require("./oddsService");
+const { resolveBetsForGame } = require("./betResolutionService");
+const config = require("../config/env"); // <-- IMPORT the new config
 
-// This is now the single, main function that handles everything.
-const fetchAndSyncGames = async (specificLeagueId = null) => {
-  try {
-    const apiKey = process.env.APIFOOTBALL_KEY;
-    if (!apiKey) {
-      throw new Error("APIFOOTBALL_KEY is not defined in your .env file.");
-    }
+// Helper function to add a delay between API calls
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    let leaguesToProcess = [];
-    const seasonsToSync = [2025, 2026];
+// --- TheSportsDB Logic ---
+const fetchFromTheSportsDB = async () => {
+  const apiKey = config.X_RAPIDAPI_KEY; // <-- USE config
+  if (!apiKey) {
+    console.error("❌ X_RAPIDAPI_KEY (for TheSportsDB) is not defined.");
+    return;
+  }
+  console.log("ℹ️ Starting game sync with TheSportsDB via RapidAPI...");
 
-    if (specificLeagueId) {
-      leaguesToProcess.push({
-        id: specificLeagueId,
-        name: `League ${specificLeagueId}`,
-      });
-    } else {
-      leaguesToProcess = [
-        { id: 39, name: "English Premier League" },
-        { id: 140, name: "La Liga (Spain)" },
-        { id: 135, name: "Serie A (Italy)" },
-        { id: 78, name: "Bundesliga (Germany)" },
-        { id: 253, name: "MLS (USA)" },
-        { id: 61, name: "Ligue 1 (France)" },
-        { id: 307, name: "Saudi Professional League" },
-        { id: 203, name: "Süper Lig (Turkey)" },
-        { id: 1, name: "World Cup" },
-        { id: 4, name: "Africa Cup of Nations" },
-        { id: 15, name: "Club World Cup" },
-      ];
-    }
+  const leagueIds = ["4328", "4335", "4332", "4331", "4334"];
+  let totalGamesProcessed = 0;
 
-    console.log(
-      `-- Starting API sync for ${leaguesToProcess.length} league(s) across ${seasonsToSync.length} season(s) --`
-    );
+  for (const leagueId of leagueIds) {
+    try {
+      const options = {
+        method: "GET",
+        url: `https://thesportsdb.p.rapidapi.com/eventsnextleague.php`,
+        params: { id: leagueId },
+        headers: {
+          "X-RapidAPI-Key": apiKey,
+          "X-RapidAPI-Host": "thesportsdb.p.rapidapi.com",
+        },
+      };
 
-    for (const league of leaguesToProcess) {
-      for (const season of seasonsToSync) {
-        console.log(
-          `ℹ️  Fetching data for ${league.name} (ID: ${league.id}), Season: ${season}...`
+      const response = await axios.request(options);
+      const events = response.data.events;
+      if (!events) continue;
+
+      for (const event of events) {
+        if (event.strSport !== "Soccer") continue;
+        const odds = await generateOddsForGame(
+          event.strHomeTeam,
+          event.strAwayTeam
         );
-
-        const apiUrl = `https://v3.football.api-sports.io/fixtures?league=${league.id}&season=${season}&status=NS`;
-        const response = await axios.get(apiUrl, {
-          headers: {
-            "x-apisports-key": apiKey,
-            "x-apisports-host": "v3.football.api-sports.io",
-          },
-        });
-
-        const gamesFromApi = response.data.response;
-        if (!gamesFromApi || gamesFromApi.length === 0) {
-          console.log(
-            `✅ No new upcoming games found for league ${league.id} in season ${season}.`
-          );
-          continue;
-        }
-
-        for (const apiGame of gamesFromApi) {
-          // --- LOGIC TO CHECK FOR ODDS CHANGES ---
-
-          // 1. Find the existing game in our database, if it exists.
-          const existingGame = await Game.findOne({
-            externalApiId: apiGame.fixture.id,
-          });
-
-          // 2. Map all the new data from the API.
-          const gameData = {
-            homeTeam: apiGame.teams.home.name,
-            awayTeam: apiGame.teams.away.name,
-            homeTeamLogo: apiGame.teams.home.logo,
-            awayTeamLogo: apiGame.teams.away.logo,
-            matchDate: new Date(apiGame.fixture.date),
-            league: `${apiGame.league.name} ${apiGame.league.season}`,
-            status: "upcoming",
-            externalApiId: apiGame.fixture.id,
-            // For now, we use placeholder odds. In a real app, this would be another API call.
-            odds: { home: 2.0, away: 3.5, draw: 3.25 },
-            // Preserve the existing odds history array if the game already exists.
-            oddsHistory: existingGame ? existingGame.oddsHistory : [],
-          };
-
-          // 3. Compare the new odds with the old odds.
-          if (
-            existingGame &&
-            (existingGame.odds.home !== gameData.odds.home ||
-              existingGame.odds.away !== gameData.odds.away ||
-              existingGame.odds.draw !== gameData.odds.draw)
-          ) {
-            console.log(
-              `- Odds changed for game ${existingGame.homeTeam} vs ${existingGame.awayTeam}. Archiving old odds.`
-            );
-            // If they are different, push the old odds into the history array.
-            gameData.oddsHistory.push({ odds: existingGame.odds });
-          }
-
-          // 4. Finally, update the database with the new data.
-          await Game.findOneAndUpdate(
-            { externalApiId: gameData.externalApiId },
-            { $set: gameData },
-            { new: true, upsert: true, setDefaultsOnInsert: true }
-          );
-        }
-        console.log(
-          `✅ Sync for league ${league.id}, season ${season} complete. Processed ${gamesFromApi.length} fixtures.`
+        const gameData = {
+          homeTeam: event.strHomeTeam,
+          awayTeam: event.strAwayTeam,
+          homeTeamLogo: event.strHomeTeamBadge,
+          awayTeamLogo: event.strAwayTeamBadge,
+          matchDate: new Date(
+            `${event.dateEvent}T${event.strTime || "12:00:00"}`
+          ),
+          league: event.strLeague,
+          odds,
+          externalApiId: `tsdb_${event.idEvent}`,
+          status: "upcoming",
+        };
+        await Game.findOneAndUpdate(
+          { externalApiId: gameData.externalApiId },
+          { $set: gameData },
+          { upsert: true, new: true }
         );
+        totalGamesProcessed++;
       }
+    } catch (error) {
+      console.error(
+        `❌ Error fetching from TheSportsDB for league ${leagueId}:`,
+        error.message
+      );
     }
-    console.log("-- Finished API sync --");
-  } catch (error) {
-    console.error(
-      "❌ Error syncing data from API-Football:",
-      error.response ? error.response.data : error.message
-    );
+    await sleep(1000);
+  }
+  console.log(
+    `✅ TheSportsDB Sync complete. Processed ${totalGamesProcessed} games.`
+  );
+};
+
+// --- API-Football Logic ---
+const fetchFromApiFootball = async () => {
+  const apiKey = config.APIFOOTBALL_KEY; // <-- USE config
+  if (!apiKey) {
+    console.error("❌ APIFOOTBALL_KEY is not defined.");
+    return;
+  }
+  console.log("ℹ️ Starting game sync with API-Football...");
+
+  let totalGamesProcessed = 0;
+  const currentSeason = new Date().getFullYear();
+  const leagueIds = ["39", "140", "135", "78", "61"];
+
+  const today = new Date();
+  const toDate = new Date();
+  toDate.setDate(today.getDate() + 7);
+
+  const formatDate = (date) => date.toISOString().split("T")[0];
+
+  for (const leagueId of leagueIds) {
+    try {
+      const config = {
+        method: "get",
+        url: `https://v3.football.api-sports.io/fixtures`,
+        params: {
+          league: leagueId,
+          season: currentSeason,
+          from: formatDate(today),
+          to: formatDate(toDate),
+        },
+        headers: { "x-apisports-key": apiKey },
+      };
+
+      const response = await axios(config);
+      const fixtures = response.data.response;
+      if (!fixtures || fixtures.length === 0) continue;
+
+      for (const fixture of fixtures) {
+        if (fixture.fixture.status.short !== "NS") continue;
+
+        const odds = await generateOddsForGame(
+          fixture.teams.home.name,
+          fixture.teams.away.name
+        );
+        const gameData = {
+          homeTeam: fixture.teams.home.name,
+          awayTeam: fixture.teams.away.name,
+          homeTeamLogo: fixture.teams.home.logo,
+          awayTeamLogo: fixture.teams.away.logo,
+          matchDate: new Date(fixture.fixture.date),
+          league: fixture.league.name,
+          odds,
+          externalApiId: `apif_${fixture.fixture.id}`,
+          status: "upcoming",
+        };
+        await Game.findOneAndUpdate(
+          { externalApiId: gameData.externalApiId },
+          { $set: gameData },
+          { upsert: true, new: true }
+        );
+        totalGamesProcessed++;
+      }
+    } catch (error) {
+      console.error(
+        `❌ Error fetching from API-Football for league ${leagueId}:`,
+        error.message
+      );
+    }
+  }
+  console.log(
+    `✅ API-Football Sync complete. Processed ${totalGamesProcessed} games.`
+  );
+};
+
+// --- Main Exported Function for Upcoming Games ---
+const syncGames = async (source = "apifootball") => {
+  if (source === "thesportsdb") {
+    await fetchFromTheSportsDB();
+  } else {
+    await fetchFromApiFootball();
   }
 };
 
-module.exports = { fetchAndSyncGames };
-// This service now handles fetching and syncing game data from the API.
+// Helper function to map API status to our internal status
+const mapApiStatus = (apiStatus) => {
+  const finished_statuses = ["FT", "AET", "PEN"];
+  if (finished_statuses.includes(apiStatus)) return "finished";
+  if (apiStatus === "PST") return "postponed";
+  const live_statuses = ["1H", "HT", "2H", "ET", "P", "LIVE", "INTR"];
+  if (live_statuses.includes(apiStatus)) return "live";
+  return "upcoming";
+};
+
+// Helper function to determine winner from score
+const getResultFromScore = (homeScore, awayScore) => {
+  if (homeScore > awayScore) return "A";
+  if (awayScore > homeScore) return "B";
+  return "Draw";
+};
+
+// --- NEW FUNCTION to Sync Live Game Data ---
+const syncLiveGames = async (io) => {
+  const apiKey = config.APIFOOTBALL_KEY; // <-- USE config
+  if (!apiKey) {
+    console.error("❌ APIFOOTBALL_KEY is not defined. Cannot sync live games.");
+    return;
+  }
+
+  const gamesInProgress = await Game.find({ status: "live" });
+  if (gamesInProgress.length === 0) {
+    return;
+  }
+
+  const gameIds = gamesInProgress
+    .map((game) => game.externalApiId.split("_")[1])
+    .join("-");
+
+  try {
+    const config = {
+      method: "get",
+      url: `https://v3.football.api-sports.io/fixtures?ids=${gameIds}`,
+      headers: { "x-apisports-key": apiKey },
+    };
+
+    const response = await axios(config);
+    const liveFixtures = response.data.response;
+
+    for (const liveFixture of liveFixtures) {
+      const game = gamesInProgress.find(
+        (g) => g.externalApiId === `apif_${liveFixture.fixture.id}`
+      );
+      if (!game) continue;
+
+      let hasChanged = false;
+      const newStatus = mapApiStatus(liveFixture.fixture.status.short);
+
+      if (
+        game.scores.home !== liveFixture.goals.home ||
+        game.scores.away !== liveFixture.goals.away ||
+        game.elapsedTime !== liveFixture.fixture.status.elapsed ||
+        game.status !== newStatus
+      ) {
+        hasChanged = true;
+        game.scores.home = liveFixture.goals.home;
+        game.scores.away = liveFixture.goals.away;
+        game.elapsedTime = liveFixture.fixture.status.elapsed;
+        game.status = newStatus;
+
+        if (newStatus === "finished") {
+          game.result = getResultFromScore(
+            liveFixture.goals.home,
+            liveFixture.goals.away
+          );
+        }
+      }
+
+      if (hasChanged) {
+        const updatedGame = await game.save();
+        console.log(
+          `UPDATED: ${updatedGame.homeTeam} ${updatedGame.scores.home} - ${updatedGame.scores.away} ${updatedGame.awayTeam}`
+        );
+        io.emit("gameUpdate", updatedGame);
+
+        if (updatedGame.status === "finished") {
+          console.log(`SETTLING BETS for finished game: ${updatedGame._id}`);
+          const session = await mongoose.startSession();
+          session.startTransaction();
+          try {
+            await resolveBetsForGame(updatedGame, session);
+            await session.commitTransaction();
+          } catch (error) {
+            await session.abortTransaction();
+            console.error(
+              `Error resolving bets for game ${updatedGame._id}:`,
+              error
+            );
+          } finally {
+            session.endSession();
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("❌ Error fetching live game data:", error.message);
+  }
+};
+
+module.exports = { syncGames, syncLiveGames };
+// Note: The syncLiveGames function is designed to be called periodically (e.g., every minute) to update live game data and resolve bets when games finish.

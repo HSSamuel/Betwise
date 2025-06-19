@@ -1,5 +1,7 @@
-require("dotenv").config();
+const config = require("./config/env");
 const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const cors = require("cors");
@@ -7,18 +9,35 @@ const rateLimit = require("express-rate-limit");
 const connectDB = require("./config/db");
 require("./config/passport-setup");
 const cron = require("node-cron");
-const mongoose = require("mongoose"); //
+const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
 const { fetchAndSyncGames } = require("./services/sportsDataService");
 const { analyzePlatformRisk } = require("./scripts/monitorPlatformRisk");
+const { syncGames, syncLiveGames } = require("./services/sportsDataService");
+const errorHandler = require("./middleware/errorMiddleware"); // <-- IMPORT the new middleware
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: config.FRONTEND_URL,
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Authorization", "Content-Type"],
+    credentials: true,
+  },
+});
+
 app.set("json spaces", 2);
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
 
 // --- Essential Middleware ---
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:5173" }));
+app.use(cors({ origin: config.FRONTEND_URL }));
 app.use(express.json());
-app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
+app.use(morgan(config.NODE_ENV === "development" ? "dev" : "combined"));
 
 // --- Rate Limiting Setup ---
 const generalApiLimiter = rateLimit({
@@ -29,7 +48,7 @@ const generalApiLimiter = rateLimit({
 });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.API_RATE_LIMIT_MAX) || 100,
+  max: config.API_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -50,35 +69,35 @@ app.use(`${apiVersion}/admin`, require("./routes/adminRoutes"));
 app.use(`${apiVersion}/users`, require("./routes/userRoutes"));
 app.use(`${apiVersion}/ai`, require("./routes/aiRoutes"));
 
-// --- Root and Info Routes ---
-app.get("/", (req, res) => {
-  res.send(
-    "Welcome to BetWise API! Your ultimate destination for sports betting."
-  );
-});
-app.get("/welcome", (req, res) => {
-  res.status(200).json({
-    message: "⚡️ Sports Betting API is up and running.",
-    timestamp: new Date().toISOString(),
-    location: "Nigeria",
+// --- Socket.IO Authentication Middleware ---
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) {
+    return next(new Error("Authentication error: Token not provided."));
+  }
+  jwt.verify(token, config.JWT_SECRET, (err, decoded) => {
+    // <-- USE config
+    if (err) {
+      return next(new Error("Authentication error: Invalid token."));
+    }
+    socket.user = decoded;
+    next();
   });
 });
-app.get("/data-deletion-instructions", (req, res) => {
-  res.status(200).send(`...HTML content...`); // Omitted for brevity
-});
 
-// --- Error Handling Middleware ---
-app.use((req, res, next) => {
-  const error = new Error(`Route not found - ${req.originalUrl}`);
-  error.statusCode = 404;
-  next(error);
-});
-
-app.use((err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  res.status(statusCode).json({
-    msg: err.message || "An unexpected internal server error occurred.",
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+// --- Centralized Socket.IO Connection Logic ---
+io.on("connection", (socket) => {
+  console.log(`✅ Authenticated socket connected: ${socket.id}`);
+  socket.on("joinUserRoom", (userId) => {
+    if (socket.user.id === userId) {
+      socket.join(userId);
+      console.log(
+        `   - User ${socket.user.username} joined their room: ${userId}`
+      );
+    }
+  });
+  socket.on("disconnect", () => {
+    console.log(`❌ Socket disconnected: ${socket.id}`);
   });
 });
 
@@ -86,37 +105,32 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await connectDB();
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
+    const PORT = config.PORT; // <-- USE config
+    server.listen(PORT, () => {
       console.log(
-        `🚀 Server running on port ${PORT} in ${
-          process.env.NODE_ENV || "development"
-        } mode.`
+        `🚀 Server running on port ${PORT} in ${config.NODE_ENV} mode.` // <-- USE config
       );
 
-      // Cron job for syncing games (every 30 mins)
-      cron.schedule("*/30 * * * *", () => {
-        console.log("🕒 Running scheduled task to sync games...");
-        fetchAndSyncGames();
+      // Fetch from API-Football once every hour
+      cron.schedule("0 * * * *", () => {
+        console.log("🕒 Cron: Fetching upcoming games from API-Football...");
+        syncGames("apifootball");
       });
-      console.log(
-        "✅ Game sync task has been scheduled to run every 30 minutes."
-      );
 
-      // Cron job for Risk Monitoring (every 5 mins)
-      cron.schedule("*/5 * * * *", async () => {
-        console.log("🤖 Running scheduled task to monitor platform risk...");
-        try {
-          // This task now reuses the main database connection, which is more efficient.
-          await analyzePlatformRisk();
-        } catch (error) {
-          console.error(
-            "❌ Error during scheduled risk analysis:",
-            error.message
-          );
-        }
+      // Fetch from TheSportsDB once every two hours
+      cron.schedule("0 */2 * * *", () => {
+        console.log("🕒 Cron: Fetching upcoming games from TheSportsDB...");
+        syncGames("thesportsdb");
       });
-      console.log("✅ Platform risk monitor scheduled to run every 5 minutes.");
+
+      // FIX: Add a new cron job to fetch LIVE game data every minute
+      cron.schedule("* * * * *", () => {
+        console.log("🕒 Cron: Fetching LIVE game data...");
+        // Pass the io instance so the service can emit updates
+        syncLiveGames(io);
+      });
+
+      console.log("✅ All background tasks have been scheduled.");
     });
   } catch (dbConnectionError) {
     console.error(
@@ -127,8 +141,9 @@ const startServer = async () => {
   }
 };
 
-if (process.env.NODE_ENV !== "test") {
+if (config.NODE_ENV !== "test") {
+  // <-- USE config
   startServer();
 }
 
-module.exports = app;
+app.use(errorHandler); // <-- USE the new middleware

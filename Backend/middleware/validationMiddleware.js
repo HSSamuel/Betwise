@@ -1,5 +1,3 @@
-// In: middleware/validationMiddleware.js
-
 const { validationResult } = require("express-validator");
 
 /**

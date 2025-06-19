@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import Button from "../ui/Button";
@@ -24,8 +24,12 @@ const LoginForm = () => {
       toast.success("Logged in successfully!");
       navigate("/");
     } catch (error) {
-      // The error is already toasted by the service/hook
-      console.error(error);
+      // FIX: Add logic to display the error message from the backend in a toast pop-up.
+      const errorMessage =
+        error.response?.data?.msg ||
+        "Login failed. Please check your credentials.";
+      toast.error(errorMessage);
+      console.error(error); // Keep the console log for debugging
     } finally {
       setLoading(false);
     }

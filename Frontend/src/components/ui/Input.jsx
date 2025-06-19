@@ -12,7 +12,10 @@ const Input = ({
   ...props
 }) => {
   const baseStyles =
-    "block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200";
+    "block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200";
+
+  // FIX: Added a specific dark mode placeholder color for better contrast.
+  const placeholderStyles = "placeholder-gray-400 dark:placeholder-gray-400";
 
   return (
     <input
@@ -23,7 +26,7 @@ const Input = ({
       onChange={onChange}
       placeholder={placeholder}
       required={required}
-      className={`${baseStyles} ${className}`}
+      className={`${baseStyles} ${placeholderStyles} ${className}`}
       {...props}
     />
   );

@@ -1,3 +1,5 @@
+// In: src/contexts/AuthContext.jsx
+
 import React, {
   createContext,
   useState,
@@ -6,42 +8,55 @@ import React, {
   useContext,
 } from "react";
 import { jwtDecode } from "jwt-decode";
-import api from "../services/api";
+import api, { setupAuthInterceptor } from "../services/api";
 import * as authService from "../services/authService";
+import { getProfile } from "../services/userService";
 
+// FIX: Add the 'export' keyword back to this line.
 export const AuthContext = createContext();
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+};
 
-export const AuthProvider = ({ children }) => {
+const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const logout = useCallback(() => {
+    setUser(null);
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    delete api.defaults.headers.common["Authorization"];
+  }, []);
+
   const initAuth = useCallback(async () => {
+    setupAuthInterceptor(logout);
     const accessToken = localStorage.getItem("accessToken");
+
     if (accessToken) {
       try {
         const decoded = jwtDecode(accessToken);
         if (decoded.exp * 1000 > Date.now()) {
-          // **THE FIX IS HERE: Use _id instead of id for consistency**
-          setUser({
-            _id: decoded.id,
-            username: decoded.username,
-            role: decoded.role,
-          });
           api.defaults.headers.common[
             "Authorization"
           ] = `Bearer ${accessToken}`;
+          const fullUserProfile = await getProfile();
+          setUser(fullUserProfile);
         } else {
           logout();
         }
       } catch (error) {
-        console.error("Invalid token on initial load", error);
+        console.error("Authentication initialization failed", error);
         logout();
       }
     }
     setLoading(false);
-  }, []);
+  }, [logout]);
 
   useEffect(() => {
     initAuth();
@@ -71,20 +86,12 @@ export const AuthProvider = ({ children }) => {
     setUser(newUser);
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    delete api.defaults.headers.common["Authorization"];
-  };
-
   const handleSocialAuth = (accessToken, refreshToken) => {
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("refreshToken", refreshToken);
     api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
     try {
       const decoded = jwtDecode(accessToken);
-      // **THE FIX IS HERE: Use _id instead of id for consistency**
       setUser({
         _id: decoded.id,
         username: decoded.username,
@@ -106,9 +113,7 @@ export const AuthProvider = ({ children }) => {
     handleSocialAuth,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+export default AuthProvider;

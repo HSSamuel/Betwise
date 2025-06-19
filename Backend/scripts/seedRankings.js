@@ -1,16 +1,11 @@
-// In: scripts/seedRankings.js
-
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env"),
-});
-
 const mongoose = require("mongoose");
 const TeamRanking = require("../models/TeamRanking");
 const rankingsData = require("../services/team-rankings.json");
+const config = require("../config/env"); // <-- IMPORT the new config
 
 const seedRankings = async () => {
   console.log("🚀 Starting team rankings seeding script...");
-  const dbUri = process.env.MONGODB_URI;
+  const dbUri = config.MONGODB_URI; // <-- USE config
   if (!dbUri) {
     console.error("❌ Error: MONGODB_URI is not defined.");
     process.exit(1);

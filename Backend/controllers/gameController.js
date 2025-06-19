@@ -4,12 +4,11 @@ const Game = require("../models/Game");
 const Bet = require("../models/Bet");
 const User = require("../models/User");
 const Transaction = require("../models/Transaction");
-const { resolveBets } = require("./betController");
 const { generateGameSummary } = require("./aiController");
 const { generateOddsForGame } = require("../services/oddsService");
+const { resolveBetsForGame } = require("../services/betResolutionService"); // UPDATED IMPORT
 
-// --- Validation Rules ---
-
+// --- Validation Rules --- (No changes to validation rules)
 // Made odds validation optional for single game creation
 exports.validateCreateGame = [
   body("homeTeam")
@@ -134,7 +133,7 @@ exports.validateCreateMultipleGames = [
   }),
 ];
 
-// --- Controller Functions ---
+// --- Controller Functions --- (No changes to other functions)
 
 exports.createMultipleGames = async (req, res, next) => {
   const errors = validationResult(req);
@@ -152,7 +151,6 @@ exports.createMultipleGames = async (req, res, next) => {
   }
 };
 
-// UPDATED: This function now includes the automated odds logic
 exports.createGame = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -162,13 +160,10 @@ exports.createGame = async (req, res, next) => {
   let { homeTeam, awayTeam, odds, league, matchDate, status } = req.body;
 
   try {
-    // --- AUTOMATED ODDS LOGIC ---
-    // If odds are not provided in the request body, generate them automatically.
     if (!odds) {
       console.log("ℹ️ Odds not provided. Calling odds generation service...");
       odds = generateOddsForGame(homeTeam, awayTeam);
     }
-    // ----------------------------
 
     const startOfDay = new Date(new Date(matchDate).setHours(0, 0, 0, 0));
     const endOfDay = new Date(new Date(matchDate).setHours(23, 59, 59, 999));
@@ -192,7 +187,7 @@ exports.createGame = async (req, res, next) => {
     const game = new Game({
       homeTeam,
       awayTeam,
-      odds, // Use either the provided odds or the ones we just generated
+      odds,
       league,
       matchDate,
       status: status || "upcoming",
@@ -260,6 +255,7 @@ exports.getGameById = async (req, res, next) => {
   }
 };
 
+// --- REFACTORED setResult FUNCTION ---
 exports.setResult = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -278,11 +274,21 @@ exports.setResult = async (req, res, next) => {
       throw new Error(
         `Game result already set to ${game.result}. Cannot change.`
       );
+
     game.result = result;
     game.status = "finished";
     await game.save({ session });
-    await resolveBets(game, session);
+
+    // Call the single, consolidated service to resolve all bets for this game
+    await resolveBetsForGame(game, session);
+
     await session.commitTransaction();
+
+    req.io.emit("gameResultUpdated", {
+      gameId: game._id,
+      result: game.result,
+      status: game.status,
+    });
     res.json({
       msg: `Result for game ${game.homeTeam} vs ${game.awayTeam} set to '${result}'. Bets resolved.`,
       game,
@@ -406,11 +412,8 @@ exports.getGameSuggestions = async (req, res, next) => {
       .select("game")
       .lean();
 
-    // **THE FIX IS HERE**
-    // We first filter out any bets where the game is null,
-    // and only then do we map them to strings.
     const betOnGameIds = userBets
-      .filter((bet) => bet.game) // This ensures bet.game is not null
+      .filter((bet) => bet.game)
       .map((bet) => bet.game.toString());
 
     let suggestedGames = [];

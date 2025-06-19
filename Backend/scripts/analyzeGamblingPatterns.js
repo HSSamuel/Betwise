@@ -1,18 +1,15 @@
-// In: scripts/analyzeGamblingPatterns.js
-
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env"),
-});
 const mongoose = require("mongoose");
-const axios = require("axios"); // Import axios for making API calls
+const axios = require("axios");
 const User = require("../models/User");
 const Bet = require("../models/Bet");
+const { sendEmail } = require("../services/emailService");
+const config = require("../config/env"); // <-- IMPORT the new config
 
-const ML_MODEL_API_URL = process.env.ML_MODEL_API_URL;
+const ML_MODEL_API_URL = config.ML_MODEL_API_URL; // <-- USE config
 
 async function analyzeUsers() {
   console.log("🚀 Starting ML-Powered Responsible Gambling analysis script...");
-  const dbUri = process.env.MONGODB_URI;
+  const dbUri = config.MONGODB_URI; // <-- USE config
 
   if (!dbUri) {
     console.error("❌ Error: MONGODB_URI is not defined.");
@@ -40,7 +37,6 @@ async function analyzeUsers() {
         createdAt: { $gte: twentyFourHoursAgo },
       });
 
-      // If no recent activity, ensure user is marked as 'ok'.
       if (recentBets.length === 0) {
         if (user.responsibleGambling.status === "at_risk") {
           user.responsibleGambling.status = "ok";
@@ -50,10 +46,9 @@ async function analyzeUsers() {
             `ℹ️ User ${user.username} status reset to 'ok' due to inactivity.`
           );
         }
-        continue; // Move to the next user
+        continue;
       }
 
-      // 1. Aggregate features for the ML model
       const totalStaked = recentBets.reduce((sum, bet) => sum + bet.stake, 0);
       const betCount = recentBets.length;
       const averageStake = totalStaked / betCount;
@@ -62,24 +57,41 @@ async function analyzeUsers() {
         bet_count_24h: betCount,
         total_staked_24h: totalStaked,
         average_stake_24h: averageStake,
-        // You could add more features here, like user's total balance, etc.
-        // current_wallet_balance: user.walletBalance
       };
 
       try {
-        // 2. Call the external ML Model API with the feature set
         console.log(
           `- Analyzing user ${user.username} with features:`,
           features
         );
         const predictionResponse = await axios.post(ML_MODEL_API_URL, features);
-        const prediction = predictionResponse.data; // e.g., { "is_at_risk": true, "risk_score": 0.85, "reason": "High frequency betting" }
+        const prediction = predictionResponse.data;
 
-        // 3. Update user status based on the model's prediction
         user.responsibleGambling.lastChecked = new Date();
         if (prediction && prediction.is_at_risk) {
+          // 2. IF USER IS FLAGGED AND WAS NOT FLAGGED BEFORE, SEND AN EMAIL
+          if (user.responsibleGambling.status !== "at_risk") {
+            const emailSubject = "A friendly check-in from BetWise";
+            const emailMessage = `
+              <div style="font-family: Arial, sans-serif; color: #333;">
+                <h2>Hello ${user.firstName},</h2>
+                <p>We're just checking in. We noticed you've been more active on BetWise lately.</p>
+                <p>We want to remind you that we have tools available to help you stay in control of your play. You can set weekly limits on your bets and stakes at any time in your account settings.</p>
+                <p>Playing should always be fun. If you ever feel like you need a break, these tools are here for you.</p>
+                <p>Best regards,<br>The BetWise Team</p>
+              </div>
+            `;
+            await sendEmail({
+              to: user.email,
+              subject: emailSubject,
+              html: emailMessage,
+            });
+            console.log(
+              `📧 Proactive responsible gambling email sent to ${user.email}.`
+            );
+          }
+
           user.responsibleGambling.status = "at_risk";
-          // Use the reason from the model as the risk factor
           user.responsibleGambling.riskFactors = [
             prediction.reason || "ML model flagged as at-risk",
           ];
@@ -97,7 +109,6 @@ async function analyzeUsers() {
 
         await user.save();
       } catch (mlError) {
-        // This will give us a much more detailed network error message
         console.error(
           `❌ Error calling ML model for user ${user.username}:`,
           mlError.code || mlError.message

@@ -1,3 +1,5 @@
+// In: src/contexts/WalletContext.jsx
+
 import React, {
   createContext,
   useState,
@@ -6,13 +8,20 @@ import React, {
   useContext,
 } from "react";
 import { getWallet } from "../services/walletService";
-import { useAuth } from "../hooks/useAuth"; // This path is now corrected
+import { useAuth } from "./AuthContext";
 
 const WalletContext = createContext();
 
-export const useWallet = () => useContext(WalletContext);
+// FIX: Add a check to ensure the context is available.
+export const useWallet = () => {
+  const context = useContext(WalletContext);
+  if (context === undefined) {
+    throw new Error("useWallet must be used within a WalletProvider");
+  }
+  return context;
+};
 
-export const WalletProvider = ({ children }) => {
+const WalletProvider = ({ children }) => {
   const [balance, setBalance] = useState(0);
   const { user } = useAuth();
 
@@ -41,4 +50,4 @@ export const WalletProvider = ({ children }) => {
   );
 };
 
-export default WalletContext;
+export default WalletProvider;

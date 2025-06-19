@@ -1,5 +1,6 @@
 // In: services/paymentService.js
 const axios = require("axios");
+const config = require("../config/env"); // <-- IMPORT the new config
 
 /**
  * Creates a Flutterwave payment link for a user deposit by calling the API directly.
@@ -17,7 +18,7 @@ const createPaymentLink = async (amount, email, name, userId) => {
       tx_ref: `BetWise-Deposit-${userId}-${Date.now()}`,
       amount: amount,
       currency: "NGN",
-      redirect_url: `${process.env.FRONTEND_URL}/wallet`,
+      redirect_url: `${config.FRONTEND_URL}/wallet`, // <-- USE config
       customer: {
         email: email,
         name: name,
@@ -29,7 +30,7 @@ const createPaymentLink = async (amount, email, name, userId) => {
     };
 
     const headers = {
-      Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+      Authorization: `Bearer ${config.FLUTTERWAVE_SECRET_KEY}`, // <-- USE config
       "Content-Type": "application/json",
     };
 
@@ -61,7 +62,7 @@ const createPaymentLink = async (amount, email, name, userId) => {
  * @returns {boolean} True if the signature is valid, false otherwise.
  */
 const verifyWebhookSignature = (signature) => {
-  const secretHash = process.env.FLUTTERWAVE_WEBHOOK_HASH;
+  const secretHash = config.FLUTTERWAVE_WEBHOOK_HASH; // <-- USE config
   return signature === secretHash;
 };
 

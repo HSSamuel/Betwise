@@ -1,5 +1,3 @@
-// In: models/Bet.js
-
 const mongoose = require("mongoose");
 
 // This new sub-schema will represent a single pick within a multi-bet.

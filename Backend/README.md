@@ -10,9 +10,8 @@ BetWise is a feature-rich sports betting backend platform. It allows users to re
 - **Wallet Management**: User wallets with deposit functionality via Flutterwave and an admin-moderated withdrawal system.
 - **Comprehensive Betting**: Place single bets or multi-selection accumulator bets on upcoming games.
 - **Dynamic Game Data**: Fetches and syncs real-world game fixtures from external sports APIs using scheduled cron jobs.
-  
 - **AI Integration**:
-  - **Context-Aware AI Chatbot**: A support chatbot that can answer general queries and securely access user-specific data to answer questions like "What's my balance?" or "Show me my last bet."  - AI-powered support chatbot for user queries.
+  - **Context-Aware AI Chatbot**: A support chatbot that can answer general queries and securely access user-specific data to answer questions like "What's my balance?" or "Show me my last bet." - AI-powered support chatbot for user queries.
   - Natural language processing for placing bets (e.g., "I want to bet 500 on Chelsea").
   - Responsible gambling interventions and personalized feedback.
 - **Responsible Gambling Tools**: Users can set their own weekly betting count and staking limits.
@@ -218,7 +217,56 @@ The `.env` file is crucial for configuring the application. It contains keys for
 - `FLUTTERWAVE_*`: My public key, secret key, encryption key, and webhook hash for Flutterwave payments.
 - `PLATFORM_RISK_THRESHOLD`: The financial threshold for triggering a risk alert.
 - `ADMIN_ALERT_EMAIL`: The email address to receive risk alerts.
-  _Source for all variables_:
+
+## 🧰 Command-Line Tools & Scripts
+
+The project includes a suite of CLI tools and automated scripts for administration, database management, and maintenance.
+
+### CLI Tools (`/cli`)
+
+These tools are designed to be run manually from the command line for specific administrative tasks.
+
+- **`createAdmin.js`**: Creates a new user with the 'admin' role. You will be prompted for a password.
+
+  - **Usage**: `node cli/createAdmin.js <username> <email> <firstName> <lastName>`
+
+- **`userCLI.js`**: A powerful multi-tool for managing a specific user.
+
+  - **Usage**: `node cli/userCLI.js <command> <username> [value]`
+  - **Commands**:
+    - `change-email`: Updates a user's email.
+    - `change-username`: Updates a user's username.
+    - `change-password`: Initiates a secure prompt to change a user's password.
+    - `check-role`: Displays the user's current role (`user` or `admin`).
+    - `promote`: Promotes a user to the 'admin' role.
+    - `demote`: Demotes an admin back to the 'user' role.
+    - `delete`: Deletes a user from the database (prompts for confirmation).
+
+- **`seedGames.js`**: Clears all existing games and seeds the database with new, sample upcoming games.
+
+  - **Usage**: `node cli/seedGames.js`
+
+- **`checkAdmin.js`**: A quick utility to check if a specific user is an admin.
+
+  - **Usage**: `node cli/checkAdmin.js <username>`
+
+- **`makeAdmin.js`**: A shortcut script to promote an existing user to an admin.
+
+  - **Usage**: `node cli/makeAdmin.js <username>`
+
+- **`populateMissingInfo.js`**: A utility to back-fill profile information for an existing user.
+  - **Usage**: `node cli/populateMissingInfo.js <username> <newFirstName> <newLastName> <newEmail>`
+
+### Automated & Maintenance Scripts (`/scripts`)
+
+These scripts are primarily designed to be run on a schedule (e.g., via cron jobs) or for specific maintenance tasks.
+
+- **`analyzeFraudPatterns.js`**: Analyzes recently created users for patterns of potential fraud (e.g., rapid deposit and withdrawal with no betting activity).
+- **`analyzeGamblingPatterns.js`**: Gathers user betting data to send to an external ML model API for responsible gambling analysis.
+- **`monitorPlatformRisk.js`**: Checks the financial exposure on all upcoming games and sends an email alert if a risk threshold is breached.
+- **`resolveMultiBets.js`**: Checks all pending multi-bets and settles them if all their constituent games have finished.
+- **`seedRankings.js`**: Seeds or updates the team power rankings from the `team-rankings.json` file.
+- **`simulateTransactions.js`**: A development script to create a test user and simulate placing a bet to generate transaction history.
 
 ## 🕒 Changelog
 

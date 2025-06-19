@@ -1,15 +1,42 @@
 import React, { useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi";
-import { getGames, cancelGame } from "../../services/gameService"; // Corrected import path
+import { getGames, cancelGame } from "../../services/gameService";
 import Spinner from "../../components/ui/Spinner";
 import Button from "../../components/ui/Button";
+import Card from "../../components/ui/Card";
 import toast from "react-hot-toast";
 import { formatDate } from "../../utils/formatDate";
 import CreateGameModal from "../../components/admin/CreateGameModal";
 import SetResultModal from "../../components/admin/SetResultModal";
+import { FaPlus, FaCheckCircle, FaTrashAlt } from "react-icons/fa";
+import { useSocket } from "../../contexts/SocketContext";
+
+// This component for the status badge is correct and needs no changes.
+const StatusBadge = ({ status }) => {
+  const badgeStyles = {
+    upcoming:
+      "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+    live: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 animate-pulse",
+    finished: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+    cancelled:
+      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  };
+
+  return (
+    <span
+      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+        badgeStyles[status] || badgeStyles.finished
+      }`}
+    >
+      {status}
+    </span>
+  );
+};
 
 const AdminGameManagementPage = () => {
   const { data, loading, error, request: fetchGames } = useApi(getGames);
+  const [games, setGames] = useState([]);
+  const socket = useSocket();
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isResultModalOpen, setResultModalOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
@@ -17,6 +44,32 @@ const AdminGameManagementPage = () => {
   useEffect(() => {
     fetchGames({ limit: 100, sortBy: "matchDate", order: "desc" });
   }, [fetchGames]);
+
+  useEffect(() => {
+    if (data?.games) {
+      setGames(data.games);
+    }
+  }, [data]);
+
+  // FIX: Correctly structured useEffect for socket listener.
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleGameUpdate = (updatedGame) => {
+      setGames((prevGames) =>
+        prevGames.map((game) =>
+          game._id === updatedGame._id ? updatedGame : game
+        )
+      );
+    };
+
+    socket.on("gameUpdate", handleGameUpdate);
+
+    // This is the required cleanup function for the effect.
+    return () => {
+      socket.off("gameUpdate", handleGameUpdate);
+    };
+  }, [socket]);
 
   const refetchGames = () =>
     fetchGames({ limit: 100, sortBy: "matchDate", order: "desc" });
@@ -46,7 +99,10 @@ const AdminGameManagementPage = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Game Management</h1>
-        <Button onClick={() => setCreateModalOpen(true)}>Create Game</Button>
+        <Button onClick={() => setCreateModalOpen(true)}>
+          <FaPlus className="mr-2" />
+          Create Game
+        </Button>
       </div>
 
       <CreateGameModal
@@ -61,78 +117,73 @@ const AdminGameManagementPage = () => {
         game={selectedGame}
       />
 
-      <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
-        <table className="w-full text-sm text-left text-gray-500">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-            <tr>
-              <th scope="col" className="px-6 py-3">
-                Match
-              </th>
-              <th scope="col" className="px-6 py-3">
-                League
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Date
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Status
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Result
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan="6" className="text-center p-4">
-                  <Spinner />
-                </td>
-              </tr>
-            )}
-            {error && (
-              <tr>
-                <td colSpan="6" className="text-center p-4 text-red-500">
-                  {error}
-                </td>
-              </tr>
-            )}
-            {data?.games.map((game) => (
-              <tr key={game._id} className="bg-white border-b">
-                <td className="px-6 py-4 font-medium">
-                  {game.homeTeam} vs {game.awayTeam}
-                </td>
-                <td className="px-6 py-4">{game.league}</td>
-                <td className="px-6 py-4">{formatDate(game.matchDate)}</td>
-                <td className="px-6 py-4">{game.status}</td>
-                <td className="px-6 py-4">{game.result || "N/A"}</td>
-                <td className="px-6 py-4 space-x-2">
-                  {game.status === "upcoming" && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openResultModal(game)}
-                      >
-                        Set Result
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => handleCancelGame(game._id)}
-                      >
-                        Cancel
-                      </Button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {loading && <Spinner />}
+      {error && <p className="text-red-500 text-center">{error}</p>}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* FIX: Render from the 'games' state variable to show real-time updates. */}
+        {games.map((game) => (
+          <Card key={game._id} className="flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-start mb-2">
+                <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+                  {game.league}
+                </span>
+                <StatusBadge status={game.status} />
+              </div>
+
+              {/* FIX: Add the live score display logic inside the card. */}
+              {game.status === "live" && game.scores ? (
+                <div className="my-2 text-center">
+                  <p className="text-2xl font-bold">
+                    {game.homeTeam}{" "}
+                    <span className="text-red-500">{game.scores.home}</span>
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {game.awayTeam}{" "}
+                    <span className="text-red-500">{game.scores.away}</span>
+                  </p>
+                  <p className="text-xs text-red-500 animate-pulse">
+                    {game.elapsedTime}'
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-lg font-bold mb-1">{game.homeTeam}</h3>
+                  <h3 className="text-lg font-bold mb-2">vs {game.awayTeam}</h3>
+                </>
+              )}
+
+              <p className="text-xs text-gray-400 mb-4">
+                {formatDate(game.matchDate)}
+              </p>
+              {game.result && (
+                <p className="font-bold text-sm">Result: {game.result}</p>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t dark:border-gray-700 flex justify-end space-x-2">
+              {game.status === "upcoming" && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => openResultModal(game)}
+                  >
+                    <FaCheckCircle className="mr-2" />
+                    Set Result
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => handleCancelGame(game._id)}
+                  >
+                    <FaTrashAlt className="mr-2" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+            </div>
+          </Card>
+        ))}
       </div>
     </div>
   );

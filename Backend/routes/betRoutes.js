@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-// Note: Your file uses 'auth', the original used 'isAuthenticated'. I'll use 'auth' to match your file.
 const { auth } = require("../middleware/authMiddleware");
 const {
   handleValidationErrors,
@@ -16,6 +15,8 @@ const {
   getUserBets,
   validateGetBetById,
   getBetById,
+  validatePlaceMultipleSingles,
+  placeMultipleSingles,
 } = require("../controllers/betController");
 
 // @desc    Place a single bet
@@ -28,7 +29,17 @@ router.post(
   placeBet
 );
 
-// @desc    Place a multi-bet
+// @desc    Place multiple single bets at once
+// @access  Private
+router.post(
+  "/singles",
+  auth,
+  validatePlaceMultipleSingles,
+  handleValidationErrors,
+  placeMultipleSingles
+);
+
+// @desc    Place a multi-bet (accumulator)
 // @access  Private
 router.post(
   "/multi",

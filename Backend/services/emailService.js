@@ -1,19 +1,20 @@
 // In: services/emailService.js
 
 const nodemailer = require("nodemailer");
+const config = require("../config/env"); // <-- IMPORT the new config
 
 const sendEmail = async (options) => {
   const transporter = nodemailer.createTransport({
-    service: process.env.EMAIL_SERVICE || "gmail",
+    service: config.EMAIL_SERVICE, // <-- USE config
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+      user: config.EMAIL_USER, // <-- USE config
+      pass: config.EMAIL_PASS, // <-- USE config
     },
   });
 
   const mailOptions = {
-    from: `"${process.env.EMAIL_FROM_NAME || "BetWise Alerts"}" <${
-      process.env.EMAIL_USER
+    from: `"${config.EMAIL_FROM_NAME}" <${
+      config.EMAIL_USER // <-- USE config
     }>`,
     to: options.to,
     subject: options.subject,

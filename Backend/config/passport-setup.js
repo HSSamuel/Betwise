@@ -4,13 +4,14 @@ const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FacebookStrategy = require("passport-facebook").Strategy;
 const User = require("../models/User"); // Adjust path as needed
+const config = require("./env"); // <-- IMPORT the new config
 
 passport.use(
   new GoogleStrategy(
     {
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${process.env.API_CALLBACK_URL}/api/v1/auth/google/callback`,
+      clientID: config.GOOGLE_CLIENT_ID, // <-- USE config
+      clientSecret: config.GOOGLE_CLIENT_SECRET, // <-- USE config
+      callbackURL: `${config.API_CALLBACK_URL}/auth/google/callback`, // <-- USE config
     },
     async (accessToken, refreshToken, profile, done) => {
       // This is the "verify" callback function that runs after Google authenticates the user
@@ -54,9 +55,9 @@ passport.use(
 passport.use(
   new FacebookStrategy(
     {
-      clientID: process.env.FACEBOOK_APP_ID,
-      clientSecret: process.env.FACEBOOK_APP_SECRET,
-      callbackURL: `${process.env.API_CALLBACK_URL}/api/v1/auth/facebook/callback`,
+      clientID: config.FACEBOOK_APP_ID, // <-- USE config
+      clientSecret: config.FACEBOOK_APP_SECRET, // <-- USE config
+      callbackURL: `${config.API_CALLBACK_URL}/auth/facebook/callback`, // <-- USE config
       profileFields: ["id", "displayName", "emails", "name"],
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -88,7 +89,3 @@ passport.use(
     }
   )
 );
-
-// Note: We are using JWTs, so we don't need to serialize/deserialize the user into a session cookie.
-// passport.serializeUser((user, done) => done(null, user.id));
-// passport.deserializeUser((id, done) => User.findById(id, (err, user) => done(err, user)));

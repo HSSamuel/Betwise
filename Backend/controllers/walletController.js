@@ -169,24 +169,14 @@ exports.getTransactionHistory = async (req, res, next) => {
 
 exports.getWalletSummary = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-    const summaryPipeline = [
-      {
-        $match: {
-          user: new mongoose.Types.ObjectId(userId),
-          type: {
-            $in: [
-              "topup",
-              "bet",
-              "win",
-              "refund",
-              "withdrawal",
-              "admin_credit",
-              "admin_debit",
-            ],
-          },
-        },
-      },
+    const userId = new mongoose.Types.ObjectId(req.user._id);
+
+    // --- NEW LOGIC: Get the balance directly from the authenticated user object ---
+    const currentWalletBalance = req.user.walletBalance || 0;
+    // --- END NEW LOGIC ---
+
+    const financialData = await Transaction.aggregate([
+      { $match: { user: userId } },
       {
         $group: {
           _id: "$type",
@@ -194,19 +184,17 @@ exports.getWalletSummary = async (req, res, next) => {
           count: { $sum: 1 },
         },
       },
-    ];
+    ]);
 
-    const results = await Transaction.aggregate(summaryPipeline);
     const summary = {
       totalTopUps: { amount: 0, count: 0 },
       totalBetsPlaced: { amount: 0, count: 0 },
       totalWinnings: { amount: 0, count: 0 },
       totalRefunds: { amount: 0, count: 0 },
-      netGamblingResult: 0,
-      currentWalletBalance: 0,
+      currentWalletBalance: currentWalletBalance, // Use the balance from the auth object
     };
 
-    results.forEach((item) => {
+    financialData.forEach((item) => {
       const amount = item.totalAmount || 0;
       const count = item.count || 0;
       switch (item._id) {
@@ -234,12 +222,13 @@ exports.getWalletSummary = async (req, res, next) => {
 
     summary.netGamblingResult =
       summary.totalWinnings.amount - summary.totalBetsPlaced.amount;
-    const user = await User.findById(userId).select("walletBalance").lean();
-    summary.currentWalletBalance = user ? user.walletBalance : 0;
 
-    // Format all amounts to 2 decimal places for the final response
     for (const key in summary) {
-      if (summary[key] && summary[key].hasOwnProperty("amount")) {
+      if (
+        summary[key] &&
+        typeof summary[key] === "object" &&
+        summary[key].hasOwnProperty("amount")
+      ) {
         summary[key].amount = parseFloat(summary[key].amount.toFixed(2));
       } else if (typeof summary[key] === "number") {
         summary[key] = parseFloat(summary[key].toFixed(2));

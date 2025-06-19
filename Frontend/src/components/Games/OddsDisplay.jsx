@@ -6,12 +6,10 @@ const OddsDisplay = ({ game }) => {
   const { addSelection, selections } = useBetSlip();
 
   const handleSelect = (outcome, odds) => {
-    // --- NEW VALIDATION LOGIC ---
-    // This regex checks if the ID is a 24-character hexadecimal string, just like the backend.
     const mongoIdRegex = /^[0-9a-fA-F]{24}$/;
     if (!game?._id || !mongoIdRegex.test(game._id)) {
       toast.error("This game cannot be selected due to an invalid ID.");
-      return; // Stop the function here
+      return;
     }
 
     addSelection({
@@ -35,7 +33,7 @@ const OddsDisplay = ({ game }) => {
         className={`p-2 rounded border transition-colors ${
           isSelected("A")
             ? "bg-green-500 text-white"
-            : "bg-gray-100 hover:bg-gray-200"
+            : "bg-gray-100 hover:bg-gray-200 text-gray-800" // FIX: Added dark text color
         }`}
       >
         <span className="text-xs">Home</span>
@@ -48,7 +46,7 @@ const OddsDisplay = ({ game }) => {
         className={`p-2 rounded border transition-colors ${
           isSelected("Draw")
             ? "bg-green-500 text-white"
-            : "bg-gray-100 hover:bg-gray-200"
+            : "bg-gray-100 hover:bg-gray-200 text-gray-800" // FIX: Added dark text color
         }`}
       >
         <span className="text-xs">Draw</span>
@@ -61,7 +59,7 @@ const OddsDisplay = ({ game }) => {
         className={`p-2 rounded border transition-colors ${
           isSelected("B")
             ? "bg-green-500 text-white"
-            : "bg-gray-100 hover:bg-gray-200"
+            : "bg-gray-100 hover:bg-gray-200 text-gray-800" // FIX: Added dark text color
         }`}
       >
         <span className="text-xs">Away</span>

@@ -1,26 +1,27 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FaPaperPlane, FaTimes } from "react-icons/fa";
-import { SiGooglegemini } from "react-icons/si";
+import toast from "react-hot-toast";
+import { useApi } from "../../hooks/useApi";
 import { handleChat } from "../../services/aiService";
+import { useAuth } from "../../contexts/AuthContext";
+import { useBetSlip } from "../../contexts/BetSlipContext";
 import Button from "../ui/Button";
 import Spinner from "../ui/Spinner";
+// 1. IMPORT MORE ICONS FOR THE NEW DESIGN
+import { FaPaperPlane, FaTimes, FaRobot } from "react-icons/fa";
 
-const AIChatBot = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      role: "model",
-      parts: [
-        { text: "Hello! How can I help you with your BetWise account today?" },
-      ],
-    },
-  ]);
+const AIChatBot = ({ isOpen, onClose }) => {
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef(null);
+  const [pendingAction, setPendingAction] = useState(null);
+
+  const { loading, request: sendChatMessage } = useApi(handleChat);
+  const { user } = useAuth();
+  const { addSelection } = useBetSlip();
+
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSubmit = async (e) => {
@@ -29,91 +30,138 @@ const AIChatBot = () => {
 
     const userMessage = { role: "user", parts: [{ text: input }] };
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setLoading(true);
 
-    try {
-      // We only send the recent history to the API to keep it concise
-      const history = messages.slice(-6);
-      const response = await handleChat(input, history);
-      const modelMessage = { role: "model", parts: [{ text: response.reply }] };
-      setMessages((prev) => [...prev, modelMessage]);
-    } catch (error) {
-      const errorMessage = {
-        role: "model",
-        parts: [{ text: "Sorry, I'm having trouble connecting right now." }],
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setLoading(false);
+    const context = pendingAction;
+    setPendingAction(null);
+    const messageToSend = input;
+    setInput("");
+
+    const aiResponse = await sendChatMessage(
+      messageToSend,
+      messages.slice(-6),
+      context
+    );
+
+    if (aiResponse) {
+      const aiMessage = { role: "model", parts: [{ text: aiResponse.reply }] };
+
+      if (aiResponse.betSlip) {
+        setPendingAction({
+          action: "CONFIRM_BET",
+          betSlip: aiResponse.betSlip,
+        });
+        const { gameId, outcome, gameDetails, oddsAtTimeOfBet } =
+          aiResponse.betSlip;
+        const odds =
+          outcome === "A"
+            ? oddsAtTimeOfBet.home
+            : outcome === "B"
+            ? oddsAtTimeOfBet.away
+            : oddsAtTimeOfBet.draw;
+        addSelection({ gameId, outcome, gameDetails, odds });
+        toast.success("Bet added to your slip! Please confirm in the chat.");
+      }
+      setMessages((prev) => [...prev, aiMessage]);
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "model",
+          parts: [{ text: "Sorry, I encountered an error. Please try again." }],
+        },
+      ]);
     }
   };
 
+  useEffect(() => {
+    if (isOpen && messages.length === 0 && user) {
+      setMessages([
+        {
+          role: "model",
+          parts: [
+            {
+              text: `Hello ${user.username}! Ask me to place a bet, or ask about sports.`,
+            },
+          ],
+        },
+      ]);
+    }
+  }, [isOpen, user, messages.length]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  // 2. APPLY NEW STYLING TO THE ENTIRE COMPONENT
   return (
-    <>
-      {/* Chat Window */}
-      {isOpen && (
-        <div className="fixed bottom-24 right-4 w-80 h-96 bg-white dark:bg-gray-800 rounded-lg shadow-2xl flex flex-col z-50">
-          <header className="bg-gray-800 text-white p-3 flex justify-between items-center rounded-t-lg">
-            <h3 className="font-bold text-lg">BetWise AI Assistant</h3>
-            <button onClick={() => setIsOpen(false)}>
-              <FaTimes />
-            </button>
-          </header>
-          <div className="flex-1 p-4 overflow-y-auto">
-            {messages.map((msg, index) => (
-              <div
-                key={index}
-                className={`mb-3 ${
-                  msg.role === "user" ? "text-right" : "text-left"
-                }`}
-              >
-                <span
-                  className={`inline-block p-2 rounded-lg ${
-                    msg.role === "user"
-                      ? "bg-green-500 text-white"
-                      : "bg-gray-200 dark:bg-gray-700"
-                  }`}
-                >
-                  {msg.parts[0].text}
-                </span>
-              </div>
-            ))}
-            {loading && (
-              <div className="text-left">
-                <Spinner size="sm" />
+    <div className="fixed bottom-20 right-4 w-96 h-[520px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-gray-700">
+      <header className="bg-gradient-to-r from-gray-800 to-gray-700 text-white p-4 flex justify-between items-center rounded-t-2xl">
+        <div className="flex items-center space-x-3">
+          <FaRobot size={22} className="text-green-400" />
+          <h3 className="font-bold text-lg">BetWise AI Assistant</h3>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-white transition-colors"
+        >
+          <FaTimes size={20} />
+        </button>
+      </header>
+
+      <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 space-y-4">
+        {messages.map((msg, index) => (
+          <div
+            key={index}
+            className={`flex items-end gap-2 ${
+              msg.role === "user" ? "justify-end" : "justify-start"
+            }`}
+          >
+            {msg.role === "model" && (
+              <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+                <FaRobot className="text-green-400" />
               </div>
             )}
-            <div ref={chatEndRef} />
+            <div
+              className={`max-w-xs md:max-w-md lg:max-w-lg xl:max-w-2xl px-4 py-3 rounded-2xl shadow-md ${
+                msg.role === "user"
+                  ? "bg-green-600 text-white rounded-br-none"
+                  : "bg-white dark:bg-gray-700 rounded-bl-none"
+              }`}
+            >
+              <p className="text-sm">{msg.parts[0].text}</p>
+            </div>
           </div>
-          <form
-            onSubmit={handleSubmit}
-            className="p-3 border-t dark:border-gray-700 flex items-center"
-          >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask something..."
-              className="flex-1 p-2 border rounded-md dark:bg-gray-600 dark:border-gray-500"
-              disabled={loading}
-            />
-            <Button type="submit" loading={loading} className="ml-2">
-              <FaPaperPlane />
-            </Button>
-          </form>
-        </div>
-      )}
-
-      {/* Floating Action Button to open chat */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-5 right-5 bg-green-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-green-700 transition-transform transform hover:scale-110 z-50"
-        aria-label="Open AI Chat"
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-white dark:bg-gray-700 rounded-bl-none rounded-2xl p-3">
+              <Spinner size="sm" />
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+      <form
+        onSubmit={handleSubmit}
+        className="p-3 border-t bg-white dark:bg-gray-800 dark:border-gray-700 flex items-center space-x-2 rounded-b-2xl"
       >
-        <SiGooglegemini size={24} />
-      </button>
-    </>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="e.g., Bet $10 on Man U"
+          className="flex-1 p-2 border-transparent rounded-full dark:bg-gray-700 focus:ring-2 focus:ring-green-500 focus:outline-none transition-all"
+          disabled={loading}
+        />
+        <Button
+          type="submit"
+          loading={loading}
+          className="rounded-full w-12 h-12 flex-shrink-0"
+        >
+          <FaPaperPlane />
+        </Button>
+      </form>
+    </div>
   );
 };
 

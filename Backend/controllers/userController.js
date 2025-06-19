@@ -2,7 +2,7 @@ const { body, validationResult } = require("express-validator");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 
-// --- Validation Rules (No changes needed here) ---
+// --- Validation Rules ---
 exports.validateChangeEmail = [
   body("newEmail")
     .isEmail()
@@ -14,11 +14,6 @@ exports.validateChangeEmail = [
 ];
 
 exports.setPassword = async (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
   const { newPassword } = req.body;
   const userId = req.user._id; // Get user ID from their auth token
 
@@ -51,6 +46,20 @@ exports.setPassword = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.validateUpdateProfile = [
+  body("firstName")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("First name cannot be empty."),
+  body("lastName")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("Last name cannot be empty."),
+  body("state").optional().trim(),
+];
 
 exports.validateSetPassword = [
   body("newPassword")
@@ -91,11 +100,6 @@ exports.validateSetLimits = [
 ];
 
 exports.setBettingLimits = async (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
   try {
     const { weeklyBetCountLimit, weeklyStakeAmountLimit } = req.body;
     const user = await User.findById(req.user._id);
@@ -142,11 +146,6 @@ exports.getProfile = async (req, res, next) => {
 
 // Change current user's email
 exports.changeEmail = async (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
   const { newEmail, currentPassword } = req.body;
 
   try {
@@ -199,11 +198,6 @@ exports.changeEmail = async (req, res, next) => {
 
 // Change current user's password
 exports.changePassword = async (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
   const { currentPassword, newPassword } = req.body;
 
   try {
@@ -243,6 +237,63 @@ exports.changePassword = async (req, res, next) => {
     await user.save();
 
     res.json({ msg: "Password updated successfully." });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// --- Controller function to update user profile ---
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const { firstName, lastName, state } = req.body;
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      const err = new Error("User not found.");
+      err.statusCode = 404;
+      return next(err);
+    }
+
+    // Update fields only if they are provided in the request
+    if (firstName) user.firstName = firstName;
+    if (lastName) user.lastName = lastName;
+    if (state) user.state = state;
+
+    await user.save();
+
+    res.status(200).json({
+      msg: "Profile updated successfully.",
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// --- NEW: Controller function to handle profile picture upload ---
+exports.uploadProfilePicture = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      const err = new Error("No image file provided.");
+      err.statusCode = 400;
+      return next(err);
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      const err = new Error("User not found.");
+      err.statusCode = 404;
+      return next(err);
+    }
+
+    // req.file.path contains the URL from Cloudinary
+    user.profilePicture = req.file.path;
+    await user.save();
+
+    res.status(200).json({
+      msg: "Profile picture updated successfully.",
+      profilePictureUrl: user.profilePicture,
+    });
   } catch (error) {
     next(error);
   }

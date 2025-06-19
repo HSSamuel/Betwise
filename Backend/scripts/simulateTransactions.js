@@ -1,17 +1,12 @@
-// In: scripts/simulateTransactions.js
-
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env"),
-});
-
 const mongoose = require("mongoose");
 const bcryptjs = require("bcryptjs");
 const User = require("../models/User");
 const Transaction = require("../models/Transaction");
-const Bet = require("../models/Bet"); // <-- IMPORT THE BET MODEL
-const Game = require("../models/Game"); // <-- IMPORT THE GAME MODEL
+const Bet = require("../models/Bet");
+const Game = require("../models/Game");
+const config = require("../config/env"); // <-- IMPORT the new config
 
-const dbUri = process.env.MONGODB_URI;
+const dbUri = config.MONGODB_URI; // <-- USE config
 let exitCode = 0;
 
 async function run() {

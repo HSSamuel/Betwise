@@ -82,13 +82,11 @@ const WalletPage = () => {
         </div>
       </div>
 
-      <div className="mb-8">
-        <Card className="bg-green-600 text-white">
-          <p className="text-lg">Current Balance</p>
-          <p className="text-5xl font-bold tracking-tight">
-            {formatCurrency(summary.currentWalletBalance)}
-          </p>
-        </Card>
+      <div className="mb-8 p-6 bg-green-600 text-white rounded-lg shadow-md">
+        <p className="text-lg">Current Balance</p>
+        <p className="text-5xl font-bold tracking-tight">
+          {formatCurrency(summary.currentWalletBalance)}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

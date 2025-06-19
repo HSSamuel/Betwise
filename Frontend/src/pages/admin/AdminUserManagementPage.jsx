@@ -6,73 +6,32 @@ import {
   adminUpdateUserRole,
 } from "../../services/adminService";
 import Spinner from "../../components/ui/Spinner";
+import Card from "../../components/ui/Card"; // Import the Card component
+import Button from "../../components/ui/Button"; // Import the Button component
 import Pagination from "../../components/ui/Pagination";
-import { FaTrash, FaUserShield, FaUser } from "react-icons/fa";
+import { FaTrashAlt, FaUserShield, FaSearch } from "react-icons/fa";
 import toast from "react-hot-toast";
-import { useDebounce } from "../../hooks/useDebounce"; // We will create this new hook
+import { useDebounce } from "../../hooks/useDebounce";
 
-const UserRow = ({ user, refetch }) => {
-  const handleDelete = async () => {
-    if (
-      window.confirm(`Are you sure you want to delete user ${user.username}?`)
-    ) {
-      try {
-        await adminDeleteUser(user._id);
-        toast.success("User deleted.");
-        refetch();
-      } catch (error) {
-        toast.error(error.response?.data?.msg || "Failed to delete user.");
-      }
-    }
-  };
-
-  const handleRoleChange = async () => {
-    const newRole = user.role === "admin" ? "user" : "admin";
-    if (window.confirm(`Change ${user.username}'s role to ${newRole}?`)) {
-      try {
-        await adminUpdateUserRole(user._id, newRole);
-        toast.success("Role updated.");
-        refetch();
-      } catch (error) {
-        toast.error(error.response?.data?.msg || "Failed to update role.");
-      }
-    }
-  };
-
+// New component for styling user roles
+const RoleBadge = ({ role }) => {
+  const is_admin = role === "admin";
   return (
-    <tr className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
-      <td className="px-6 py-4 font-medium">{user.username}</td>
-      <td className="px-6 py-4">{user.email}</td>
-      <td className="px-6 py-4">
-        {user.firstName} {user.lastName}
-      </td>
-      <td className="px-6 py-4">{user.role}</td>
-      <td className="px-6 py-4">
-        {new Date(user.createdAt).toLocaleDateString()}
-      </td>
-      <td className="px-6 py-4 flex space-x-2">
-        <button
-          onClick={handleRoleChange}
-          className="text-blue-500 hover:text-blue-700"
-          title={`Change role to ${user.role === "admin" ? "user" : "admin"}`}
-        >
-          {user.role === "admin" ? <FaUserShield /> : <FaUser />}
-        </button>
-        <button
-          onClick={handleDelete}
-          className="text-red-500 hover:text-red-700"
-          title="Delete user"
-        >
-          <FaTrash />
-        </button>
-      </td>
-    </tr>
+    <span
+      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+        is_admin
+          ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+          : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+      }`}
+    >
+      {role}
+    </span>
   );
 };
 
 const AdminUserManagementPage = () => {
   const [filters, setFilters] = useState({ page: 1, limit: 10, search: "" });
-  const debouncedSearchTerm = useDebounce(filters.search, 500); // Debounce search input
+  const debouncedSearchTerm = useDebounce(filters.search, 500);
   const { data, loading, error, request: fetchUsers } = useApi(listUsers);
 
   const fetchLatestUsers = useCallback(() => {
@@ -81,82 +40,124 @@ const AdminUserManagementPage = () => {
       delete queryParams.search;
     }
     fetchUsers(queryParams);
-  }, [filters.page, debouncedSearchTerm, fetchUsers]); // Re-fetch when page or debounced search changes
+  }, [filters.page, debouncedSearchTerm, fetchUsers]);
 
   useEffect(() => {
     fetchLatestUsers();
   }, [fetchLatestUsers]);
 
   const handleSearchChange = (e) => {
-    setFilters((prev) => ({ ...prev, search: e.target.value, page: 1 })); // Reset to page 1 on search
+    setFilters((prev) => ({ ...prev, search: e.target.value, page: 1 }));
+  };
+
+  const handleDelete = async (user) => {
+    if (
+      window.confirm(`Are you sure you want to delete user ${user.username}?`)
+    ) {
+      try {
+        await adminDeleteUser(user._id);
+        toast.success("User deleted.");
+        fetchLatestUsers();
+      } catch (error) {
+        toast.error(error.response?.data?.msg || "Failed to delete user.");
+      }
+    }
+  };
+
+  const handleRoleChange = async (user) => {
+    const newRole = user.role === "admin" ? "user" : "admin";
+    if (window.confirm(`Change ${user.username}'s role to ${newRole}?`)) {
+      try {
+        await adminUpdateUserRole(user._id, newRole);
+        toast.success("Role updated.");
+        fetchLatestUsers();
+      } catch (error) {
+        toast.error(error.response?.data?.msg || "Failed to update role.");
+      }
+    }
   };
 
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">User Management</h1>
 
-      <div className="mb-4">
+      <div className="mb-6 relative">
+        <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
           placeholder="Search by name, username, or email..."
           value={filters.search}
           onChange={handleSearchChange}
-          className="w-full max-w-sm p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+          className="w-full max-w-md p-2 pl-10 border rounded-md dark:bg-gray-700 dark:border-gray-600"
         />
       </div>
 
-      <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
-        <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-            <tr>
-              <th scope="col" className="px-6 py-3">
-                Username
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Email
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Name
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Role
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Joined
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan="6" className="text-center p-4">
-                  <Spinner />
-                </td>
-              </tr>
-            )}
-            {error && !loading && (
-              <tr>
-                <td colSpan="6" className="text-center p-4 text-red-500">
-                  {error}
-                </td>
-              </tr>
-            )}
-            {data?.users.map((user) => (
-              <UserRow key={user._id} user={user} refetch={fetchLatestUsers} />
-            ))}
-            {!loading && data?.users.length === 0 && (
-              <tr>
-                <td colSpan="6" className="text-center p-4">
-                  No users found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      {loading && <Spinner />}
+      {error && <p className="text-red-500 text-center">{error}</p>}
+
+      {/* Replaced table with a card grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {data?.users.map((user) => (
+          <Card key={user._id}>
+            <div className="flex items-center space-x-4">
+              <img
+                src={
+                  user.profilePicture ||
+                  `https://ui-avatars.com/api/?name=${user.firstName}+${user.lastName}&background=random&color=fff`
+                }
+                alt="Profile"
+                className="w-16 h-16 rounded-full object-cover"
+              />
+              <div>
+                <h3 className="text-lg font-bold">
+                  {user.firstName} {user.lastName}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  @{user.username}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t dark:border-gray-700 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="font-semibold">Email:</span>
+                <span className="text-gray-600 dark:text-gray-300">
+                  {user.email}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="font-semibold">Role:</span>
+                <RoleBadge role={user.role} />
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="font-semibold">Joined:</span>
+                <span className="text-gray-600 dark:text-gray-300">
+                  {new Date(user.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t dark:border-gray-700 flex justify-end space-x-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleRoleChange(user)}
+              >
+                <FaUserShield className="mr-2" /> Change Role
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => handleDelete(user)}
+              >
+                <FaTrashAlt className="mr-2" /> Delete
+              </Button>
+            </div>
+          </Card>
+        ))}
       </div>
+
+      {!loading && data?.users.length === 0 && (
+        <p className="text-center text-gray-500 mt-8">No users found.</p>
+      )}
 
       <Pagination
         currentPage={data?.currentPage || 1}

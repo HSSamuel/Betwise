@@ -1,15 +1,11 @@
-// In: scripts/monitorPlatformRisk.js
-
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env"),
-});
 const mongoose = require("mongoose");
 const Game = require("../models/Game");
 const Bet = require("../models/Bet");
 const { sendEmail } = require("../services/emailService");
+const config = require("../config/env"); // <-- IMPORT the new config
 
-const RISK_THRESHOLD = parseFloat(process.env.PLATFORM_RISK_THRESHOLD) || 10000;
-const ADMIN_EMAIL = process.env.ADMIN_ALERT_EMAIL;
+const RISK_THRESHOLD = config.PLATFORM_RISK_THRESHOLD; // <-- USE config
+const ADMIN_EMAIL = config.ADMIN_ALERT_EMAIL; // <-- USE config
 
 const analyzePlatformRisk = async () => {
   console.log("🤖 Starting platform risk analysis...");
