@@ -6,7 +6,6 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useBetSlip } from "../../contexts/BetSlipContext";
 import Button from "../ui/Button";
 import Spinner from "../ui/Spinner";
-// 1. IMPORT MORE ICONS FOR THE NEW DESIGN
 import { FaPaperPlane, FaTimes, FaRobot } from "react-icons/fa";
 
 const AIChatBot = ({ isOpen, onClose }) => {
@@ -42,7 +41,7 @@ const AIChatBot = ({ isOpen, onClose }) => {
       context
     );
 
-    if (aiResponse) {
+    if (aiResponse && aiResponse.reply) {
       const aiMessage = { role: "model", parts: [{ text: aiResponse.reply }] };
 
       if (aiResponse.betSlip) {
@@ -92,10 +91,9 @@ const AIChatBot = ({ isOpen, onClose }) => {
     return null;
   }
 
-  // 2. APPLY NEW STYLING TO THE ENTIRE COMPONENT
   return (
-    <div className="fixed bottom-20 right-4 w-96 h-[520px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-gray-700">
-      <header className="bg-gradient-to-r from-gray-800 to-gray-700 text-white p-4 flex justify-between items-center rounded-t-2xl">
+    <div className="fixed bottom-24 right-4 left-4 h-[65vh] max-h-[520px] bg-white dark:bg-gray-800 flex flex-col z-50 rounded-2xl shadow-2xl border dark:border-gray-700 md:w-96 md:h-[520px] md:left-auto">
+      <header className="bg-gradient-to-r from-gray-800 to-gray-700 text-white p-4 flex justify-between items-center rounded-t-2xl flex-shrink-0">
         <div className="flex items-center space-x-3">
           <FaRobot size={22} className="text-green-400" />
           <h3 className="font-bold text-lg">BetWise AI Assistant</h3>

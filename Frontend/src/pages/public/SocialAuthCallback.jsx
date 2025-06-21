@@ -1,44 +1,60 @@
-// In: src/pages/public/SocialAuthCallback.jsx
-
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-// FIX: Removed the duplicate import statement below
-import * as authService from "../../services/authService";
+import { getMe } from "../../services/authService";
 import { toast } from "react-hot-toast";
 import Spinner from "../../components/ui/Spinner";
+import api from "../../services/api";
 
 const SocialAuthCallback = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { setUser } = useAuth();
+  const [searchParams] = useSearchParams();
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const completeSocialLogin = async () => {
-      try {
-        const { user } = await authService.getMe();
+      // 1. Read the tokens from the URL sent by the backend
+      const accessToken = searchParams.get("accessToken");
+      const refreshToken = searchParams.get("refreshToken");
 
-        if (user) {
-          login(user);
-          toast.success(`Welcome, ${user.firstName}!`);
-          navigate("/");
-        } else {
-          throw new Error("Authentication failed. Please try again.");
+      if (accessToken && refreshToken) {
+        try {
+          // 2. Store tokens in local storage and set the auth header for future requests
+          localStorage.setItem("accessToken", accessToken);
+          localStorage.setItem("refreshToken", refreshToken);
+          api.defaults.headers.common[
+            "Authorization"
+          ] = `Bearer ${accessToken}`;
+
+          // 3. Fetch the full user profile with the new token
+          const userProfile = await getMe();
+
+          if (userProfile) {
+            // 4. Set the user in the global context
+            setUser(userProfile);
+            toast.success(`Welcome, ${userProfile.firstName}!`);
+            // 5. Redirect to the homepage, successfully logged in
+            navigate("/");
+          } else {
+            throw new Error("Could not retrieve user profile.");
+          }
+        } catch (err) {
+          console.error("Social login finalization failed:", err);
+          setError("An error occurred while finalizing your login.");
+          toast.error("An error occurred. Please try logging in again.");
+          setTimeout(() => navigate("/login"), 3000);
         }
-      } catch (err) {
-        console.error("Social login failed:", err);
-        const errorMessage =
-          err.response?.data?.msg ||
-          err.message ||
-          "An unknown error occurred.";
-        setError(errorMessage);
-        toast.error(errorMessage);
+      } else {
+        // This handles the case where the URL does not contain the required tokens
+        setError("Authentication tokens were not found in the redirect.");
+        toast.error("Authentication failed. Please try again.");
         setTimeout(() => navigate("/login"), 3000);
       }
     };
 
     completeSocialLogin();
-  }, [navigate, login]);
+  }, [navigate, searchParams, setUser]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">

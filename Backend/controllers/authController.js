@@ -1,31 +1,23 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
 const { body, validationResult } = require("express-validator");
 const User = require("../models/User");
 const TokenBlacklist = require("../models/TokenBlacklist");
-const { sendEmail } = require("../services/emailService"); // <-- IMPORT from new service
-const config = require("../config/env"); // <-- IMPORT the new config
+const { sendEmail } = require("../services/emailService");
+const config = require("../config/env");
 
 // --- Helper Functions ---
 const generateAccessToken = (user) => {
   const payload = { id: user._id, role: user.role, username: user.username };
-  return jwt.sign(payload, config.JWT_SECRET, {
-    // <-- USE config
-    expiresIn: config.JWT_EXPIRES_IN, // <-- USE config
-  });
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1d" });
 };
 
 const generateRefreshToken = (user) => {
   const payload = { id: user._id, username: user.username };
-  return jwt.sign(payload, config.JWT_REFRESH_SECRET, {
-    // <-- USE config
-    expiresIn: config.JWT_REFRESH_EXPIRES_IN, // <-- USE config
-  });
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" });
 };
 
-// --- Validation Rules ---
 // --- Validation Rules ---
 exports.validateRegister = [
   body("username")
@@ -39,14 +31,7 @@ exports.validateRegister = [
     .normalizeEmail(),
   body("password")
     .isLength({ min: 6 })
-    .withMessage("Password must be at least 6 characters long.")
-    // FIX: Add password complexity enforcement
-    .matches(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/
-    )
-    .withMessage(
-      "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character."
-    ),
+    .withMessage("Password must be at least 6 characters long."),
   body("firstName")
     .trim()
     .notEmpty()
@@ -57,7 +42,6 @@ exports.validateRegister = [
     .notEmpty()
     .withMessage("Last name is required.")
     .escape(),
-  body("state").optional().trim().escape(),
 ];
 exports.validateLogin = [
   body("email")
@@ -86,6 +70,18 @@ exports.validateResetPassword = [
 
 // --- Controller Functions ---
 
+exports.getMe = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select("-password");
+    if (!user) {
+      return res.status(404).json({ msg: "User not found." });
+    }
+    res.status(200).json(user);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.register = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -100,7 +96,9 @@ exports.register = async (req, res, next) => {
       ],
     });
     if (user) {
-      return res.status(400).json({ msg: "Username or email already exists." });
+      const err = new Error("Username or email already exists.");
+      err.statusCode = 400;
+      return next(err);
     }
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -131,9 +129,6 @@ exports.register = async (req, res, next) => {
       },
     });
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({ msg: "Username or email already exists." });
-    }
     next(error);
   }
 };
@@ -150,14 +145,12 @@ exports.login = async (req, res, next) => {
       "+password"
     );
 
-    // Specific check for user not found
     if (!user) {
       const err = new Error("No account found with that email address.");
       err.statusCode = 401; // Unauthorized
       return next(err);
     }
 
-    // Handle cases where user signed up with social media and has no password
     if (!user.password) {
       const err = new Error(
         "This account was created using a social login. Please sign in with Google or Facebook."
@@ -166,12 +159,6 @@ exports.login = async (req, res, next) => {
       return next(err);
     }
 
-    if (!user) {
-      const err = new Error("No account found with that email address.");
-      err.statusCode = 401;
-      return next(err);
-    }
-    //...
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       const err = new Error("Incorrect password. Please try again.");
@@ -179,7 +166,6 @@ exports.login = async (req, res, next) => {
       return next(err);
     }
 
-    // If successful, generate tokens and send user data
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
     res.json({
@@ -242,42 +228,33 @@ exports.refreshToken = async (req, res, next) => {
   }
 };
 
+// --- FIX: Corrected Social Login Callback with your URL ---
 exports.socialLoginCallback = async (req, res, next) => {
   try {
     const user = req.user;
-
     if (!user) {
+      // If authentication fails, redirect to the frontend login page with an error
       return res
         .status(401)
-        .redirect(`${config.FRONTEND_URL}/login?error=auth_failed`); // <-- USE config
+        .redirect(
+          `https://betwise-frontend-5uqq.vercel.app/login?error=auth_failed`
+        );
     }
-    // 1. Generate Tokens
-    const accessToken = user.generateAuthToken();
-    const refreshToken = user.generateRefreshToken();
 
-    // ... (cookie options)
-    const cookieOptions = {
-      httpOnly: true,
-      secure: config.NODE_ENV === "production", // <-- USE config
-      sameSite: "Strict",
-    };
+    // Use the correct helper functions to generate tokens
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
 
-    res.cookie("accessToken", accessToken, {
-      ...cookieOptions,
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    });
-
-    res.cookie("refreshToken", refreshToken, {
-      ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
-
-    // 3. Instead of tokens, redirect to a dedicated success page
-    // The frontend will use this page to confirm the login status.
-    res.redirect(`${config.FRONTEND_URL}/social-auth-success`); // <-- USE config
+    // Redirect to a dedicated frontend page with the tokens in the URL query
+    res.redirect(
+      `https://betwise-frontend-5uqq.vercel.app/social-auth-success?accessToken=${accessToken}&refreshToken=${refreshToken}`
+    );
   } catch (error) {
     console.error("Social login callback error:", error);
-    res.redirect(`${config.FRONTEND_URL}/login?error=server_error`); // <-- USE config
+    // On server error, also redirect to the frontend login page
+    res.redirect(
+      `https://betwise-frontend-5uqq.vercel.app/login?error=server_error`
+    );
   }
 };
 
