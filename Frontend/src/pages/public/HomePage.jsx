@@ -9,11 +9,9 @@ import {
   getGeneralSportsNews,
 } from "../../services/aiService";
 import { useApi } from "../../hooks/useApi";
-// FIX: Corrected all component import paths to use the correct, case-sensitive folder names ("Games", "Layout", etc.)
-import GameList from "../../components/Games/GameList";
+import GameList from "../../components/games/GameList";
 import BetSlip from "../../components/bets/BetSlip";
-import GameCardSkeleton from "../../components/Games/GameCardSkeleton";
-import OddsDisplay from "../../components/Games/OddsDisplay";
+import GameCardSkeleton from "../../components/games/GameCardSkeleton";
 import { useAuth } from "../../contexts/AuthContext";
 import { useSocket } from "../../contexts/SocketContext";
 import AISearchBar from "../../components/ai/AISearchBar";
@@ -21,6 +19,7 @@ import AINewsSummary from "../../components/ai/AINewsSummary";
 import WorldSportsNews from "../../components/news/WorldSportsNews";
 import Button from "../../components/ui/Button";
 import { formatDate } from "../../utils/formatDate";
+import OddsDisplay from "../../components/Games/OddsDisplay";
 import { FaRegSadTear, FaChartLine, FaTrophy } from "react-icons/fa";
 
 const HeroSection = ({ onBrowseClick }) => (
@@ -169,7 +168,8 @@ const HomePage = () => {
       fetchFeed();
       fetchSuggestions();
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (liveData?.games) {

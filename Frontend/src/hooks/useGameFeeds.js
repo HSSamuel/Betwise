@@ -8,12 +8,14 @@ import {
 } from "../services/gameService";
 import { getRecommendedGames } from "../services/aiService";
 import { useAuth } from "./useAuth";
+import { useSocket } from "../contexts/SocketContext";
 
 /**
  * A custom hook to fetch and manage all game feeds required for the HomePage.
  */
 export const useGameFeeds = () => {
   const { user } = useAuth();
+  const socket = useSocket();
   const [games, setGames] = useState({
     upcoming: [],
     live: [],
@@ -25,16 +27,11 @@ export const useGameFeeds = () => {
 
   const [resultsDate, setResultsDate] = useState(new Date());
 
-  // API hooks for each data source
+  // API hooks for all data *except* live games
   const {
     data: upcomingData,
     loading: upcomingLoading,
     request: fetchUpcoming,
-  } = useApi(getGames);
-  const {
-    data: liveData,
-    loading: liveLoading,
-    request: fetchLive,
   } = useApi(getGames);
   const {
     data: finishedData,
@@ -57,17 +54,15 @@ export const useGameFeeds = () => {
     request: fetchSuggestions,
   } = useApi(getGameSuggestions);
 
-  // Combined loading state for the entire hook
+  // isLoading no longer includes a `liveLoading` state
   const isLoading =
     upcomingLoading ||
-    liveLoading ||
     finishedLoading ||
     (user && (recsLoading || feedLoading || suggestionsLoading));
 
-  // A single function to trigger all data fetches
+  // fetchAll no longer includes a `fetchLive` call
   const fetchAll = useCallback(() => {
     fetchUpcoming({ status: "upcoming", limit: 20 });
-    fetchLive({ status: "live" });
     const date_filter = resultsDate.toISOString().split("T")[0];
     fetchFinished({
       status: "finished",
@@ -80,14 +75,9 @@ export const useGameFeeds = () => {
       fetchFeed();
       fetchSuggestions();
     }
-    // FIX: The dependency array is changed.
-    // By removing the dependencies, this function's reference will be stable and
-    // the useEffect below will only run once on initial mount, not on auth change.
-    // The `if (user)` check inside is sufficient to handle fetching user-specific data.
   }, [
     resultsDate,
     fetchUpcoming,
-    fetchLive,
     fetchFinished,
     fetchRecs,
     fetchFeed,
@@ -95,19 +85,14 @@ export const useGameFeeds = () => {
     user,
   ]);
 
-  // Initial fetch on component mount
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
 
-  // Effects to update the central 'games' state when any data source changes
+  // Effects to update state from API calls (excluding live games)
   useEffect(() => {
     setGames((prev) => ({ ...prev, upcoming: upcomingData?.games || [] }));
   }, [upcomingData]);
-
-  useEffect(() => {
-    setGames((prev) => ({ ...prev, live: liveData?.games || [] }));
-  }, [liveData]);
 
   useEffect(() => {
     setGames((prev) => ({ ...prev, finished: finishedData?.games || [] }));
@@ -130,10 +115,46 @@ export const useGameFeeds = () => {
       }));
   }, [suggestionsData, user]);
 
-  // Expose the state and functions to the component
+  // This single useEffect now manages all live game state via WebSockets
+  useEffect(() => {
+    if (!socket) return;
+
+    // Handles the initial list of live games sent upon connection
+    const handleAllLiveGames = (allLiveGames) => {
+      setGames((prev) => ({ ...prev, live: allLiveGames }));
+    };
+
+    // Handles subsequent real-time updates for individual games
+    const handleGameUpdate = (updatedGame) => {
+      setGames((prev) => {
+        const newUpcoming = prev.upcoming.filter(
+          (g) => g._id !== updatedGame._id
+        );
+        let newLive = prev.live.filter((g) => g._id !== updatedGame._id);
+
+        if (updatedGame.status === "live") {
+          newLive.unshift(updatedGame);
+        }
+
+        return {
+          ...prev,
+          upcoming: newUpcoming,
+          live: newLive,
+        };
+      });
+    };
+
+    socket.on("allLiveGames", handleAllLiveGames);
+    socket.on("gameUpdate", handleGameUpdate);
+
+    return () => {
+      socket.off("allLiveGames", handleAllLiveGames);
+      socket.off("gameUpdate", handleGameUpdate);
+    };
+  }, [socket]);
+
   return {
     games,
-    setGames,
     isLoading,
     fetchAll,
     resultsDate,
